@@ -101,7 +101,15 @@ export default function Home() {
   }, [allTasks, today]);
 
   const totalDays = diffDays(dateRange.start, dateRange.end);
-  const todayLeft = Math.max(0, Math.min(100, (diffDays(dateRange.start, today) / totalDays) * 100));
+
+  const dateHeaders = useMemo(() => {
+    const h = []; let c = new Date(dateRange.start);
+    while (c <= dateRange.end) { h.push({ day: c.getDate(), isWeekend: c.getDay() === 0 || c.getDay() === 6, isToday: fmt(c) === fmt(today), dateStr: fmt(c) }); c = addDays(c, 1); }
+    return h;
+  }, [dateRange, today]);
+
+  const todayIdx = dateHeaders.findIndex((h) => h.isToday);
+  const todayLeft = todayIdx >= 0 ? ((todayIdx + 0.5) / dateHeaders.length) * 100 : -1;
 
   let nextTaskId = useMemo(() => { let max = 0; projects.forEach((p) => p.tasks.forEach((t) => { if (t.id > max) max = t.id; })); return max + 1; }, [projects]);
 
@@ -181,12 +189,6 @@ export default function Home() {
     label: { display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4, color: "#666" },
     ib: { background: "none", border: "none", cursor: "pointer", padding: "2px 6px", fontSize: 13, opacity: 0.4, lineHeight: 1 },
   };
-
-  const dateHeaders = useMemo(() => {
-    const h = []; let c = new Date(dateRange.start);
-    while (c <= dateRange.end) { h.push({ day: c.getDate(), isWeekend: c.getDay() === 0 || c.getDay() === 6, isToday: fmt(c) === fmt(today) }); c = addDays(c, 1); }
-    return h;
-  }, [dateRange, today]);
 
   const calendarData = useMemo(() => {
     const y = today.getFullYear(), m = today.getMonth(), fd = new Date(y, m, 1).getDay(), dim = new Date(y, m + 1, 0).getDate();
@@ -276,8 +278,12 @@ export default function Home() {
               <div key={project.id} style={s.card}>
                 {renderProjectHeader(project)}
                 {expandedProjects.has(project.id) && project.tasks.map((task) => {
-                  const ts = diffDays(dateRange.start, parseDate(task.start)), td = diffDays(parseDate(task.start), parseDate(task.end));
-                  const l = (ts / totalDays) * 100, w = (td / totalDays) * 100;
+                  const startIdx = dateHeaders.findIndex((h) => h.dateStr === task.start);
+                  const endIdx = dateHeaders.findIndex((h) => h.dateStr === task.end);
+                  const si = startIdx >= 0 ? startIdx : diffDays(dateRange.start, parseDate(task.start));
+                  const ei = endIdx >= 0 ? endIdx : diffDays(dateRange.start, parseDate(task.end));
+                  const l = (si / dateHeaders.length) * 100;
+                  const w = ((ei - si + 1) / dateHeaders.length) * 100;
                   const ov = task.status !== "Done" && parseDate(task.end) < today;
                   return (
                     <div key={task.id} style={s.ganttRow}>
@@ -286,7 +292,7 @@ export default function Home() {
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
                       </div>
                       <div style={s.ganttTrack}>
-                        <div style={s.todayLine(todayLeft)} />
+                        {todayLeft >= 0 && <div style={s.todayLine(todayLeft)} />}
                         <div style={{ ...s.bar(l, w, ov ? "#EF4444" : task.status === "Done" ? "#1D9E75" : project.color), opacity: task.status === "Done" ? 0.6 : 1 }} title={`${task.name}\n${task.assignee} | ${task.start} → ${task.end}`}>
                           <span>{task.assignee}</span>
                         </div>
