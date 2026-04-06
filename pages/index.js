@@ -283,34 +283,43 @@ export default function Home() {
                     {project.tasks.map((task) => {
                       const startIdx = dateHeaders.findIndex((h) => h.dateStr === task.start);
                       const endIdx = dateHeaders.findIndex((h) => h.dateStr === task.end);
-                      const todayColIdx = dateHeaders.findIndex((h) => h.isToday);
                       const ov = task.status !== "Done" && parseDate(task.end) < today;
                       const barColor = ov ? "#EF4444" : task.status === "Done" ? "#1D9E75" : project.color;
-                      const barStartPct = startIdx >= 0 ? (startIdx / dateHeaders.length) * 100 : 0;
-                      const barWidthPct = startIdx >= 0 && endIdx >= 0 ? ((endIdx - startIdx + 1) / dateHeaders.length) * 100 : 0;
-                      const todayLinePct = todayColIdx >= 0 ? ((todayColIdx + 0.5) / dateHeaders.length) * 100 : -1;
                       return (
                         <div key={task.id} style={{ display: "flex", borderBottom: "1px solid #f5f5f2", minHeight: 36 }}>
                           <div style={s.ganttLabel}>
                             <span style={{ ...s.badge(task.status), fontSize: 9, padding: "1px 5px" }}>{task.status === "Done" ? "✓" : task.status === "In Progress" ? "◐" : "○"}</span>
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
                           </div>
-                          <div style={{ flex: 1, position: "relative", height: 36 }}>
-                            {/* 오늘 세로선 */}
-                            {todayLinePct >= 0 && <div style={{ position: "absolute", top: 0, bottom: 0, left: `${todayLinePct}%`, width: 2, background: "#EF4444", zIndex: 5 }} />}
-                            {/* 간트 바 (하나로 연결) */}
-                            {barWidthPct > 0 && (
-                              <div style={{
-                                position: "absolute", top: 8, height: 20,
-                                left: `${barStartPct}%`, width: `${barWidthPct}%`,
-                                background: barColor, borderRadius: 4, opacity: task.status === "Done" ? 0.6 : 1,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                overflow: "hidden", zIndex: 2,
-                              }} title={`${task.name}\n${task.assignee} | ${task.start} → ${task.end}`}>
-                                <span style={{ fontSize: 10, color: "#fff", fontWeight: 500, whiteSpace: "nowrap", padding: "0 4px" }}>{task.assignee}</span>
+                          {/* 날짜 셀들 - 헤더와 동일한 flex 구조 */}
+                          {dateHeaders.map((h, i) => {
+                            const isInBar = i >= startIdx && i <= endIdx && startIdx >= 0;
+                            const isBarStart = i === startIdx && startIdx >= 0;
+                            const isBarEnd = i === endIdx && endIdx >= 0;
+                            return (
+                              <div key={i} style={{ flex: 1, minWidth: 24, position: "relative", height: 36 }}>
+                                {/* 오늘 세로선 - 셀 중앙에 정확히 배치 */}
+                                {h.isToday && <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 2, background: "#EF4444", zIndex: 5, transform: "translateX(-50)" }} />}
+                                {/* 바 조각 - 연결되어 보이도록 */}
+                                {isInBar && (
+                                  <div style={{
+                                    position: "absolute", top: 8, bottom: 8,
+                                    left: isBarStart ? 1 : 0,
+                                    right: isBarEnd ? 1 : 0,
+                                    background: barColor,
+                                    opacity: task.status === "Done" ? 0.6 : 1,
+                                    borderRadius: isBarStart && isBarEnd ? 4 : isBarStart ? "4px 0 0 4px" : isBarEnd ? "0 4px 4px 0" : 0,
+                                  }} title={`${task.name}\n${task.assignee} | ${task.start} → ${task.end}`} />
+                                )}
+                                {/* 바 중앙 셀에만 이름 오버레이 */}
+                                {isInBar && startIdx >= 0 && i === Math.floor((startIdx + endIdx) / 2) && (
+                                  <div style={{ position: "absolute", top: 8, bottom: 8, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3, pointerEvents: "none" }}>
+                                    <span style={{ fontSize: 10, color: "#fff", fontWeight: 500, whiteSpace: "nowrap" }}>{task.assignee}</span>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            );
+                          })}
                         </div>
                       );
                     })}
