@@ -1,455 +1,676 @@
-// pages/index.js
-import { useState, useEffect, useMemo, useCallback } from "react";
-import Head from "next/head";
+import { useState, useRef } from "react";
 
-const STATUS_COLORS = { Todo: "#888780", "In Progress": "#378ADD", Done: "#1D9E75" };
-const STATUS_BG = { Todo: "#F1EFE8", "In Progress": "#E6F1FB", Done: "#EAF3DE" };
+const TODAY = new Date("2026-04-06");
+const GANTT_START = new Date("2026-03-12");
+const GANTT_DAYS = 36;
 
-const fmt = (d) => d.toISOString().split("T")[0];
-const parseDate = (s) => new Date(s + "T00:00:00");
-const diffDays = (a, b) => Math.round((b - a) / 86400000);
-const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
-
-// ============================================================
-// 🔧 여기서 담당자를 수정하세요
-// ============================================================
-const TEAM = ["김은석", "이지은", "박성민", "최현아", "정다혜"];
-const EMAILS = {
-  "김은석": "eunseok@woojoo.com",
-  "이지은": "jieun@woojoo.com",
-  "박성민": "sungmin@woojoo.com",
-  "최현아": "hyuna@woojoo.com",
-  "정다혜": "dahye@woojoo.com",
+const getLeft = (dateStr) => {
+  const d = new Date(dateStr);
+  const days = (d - GANTT_START) / 86400000;
+  return Math.max(0, Math.min(100, (days / GANTT_DAYS) * 100));
 };
 
-const COLORS = ["#378ADD", "#1D9E75", "#D85A30", "#D4537E", "#BA7517", "#7F77DD"];
+const getWidth = (startStr, endStr) => {
+  const s = new Date(startStr);
+  const e = new Date(endStr);
+  const startDay = Math.max(0, (s - GANTT_START) / 86400000);
+  const endDay = Math.min(GANTT_DAYS, (e - GANTT_START) / 86400000 + 1);
+  return Math.max(0, ((endDay - startDay) / GANTT_DAYS) * 100);
+};
 
-const DEFAULT_PROJECTS = [
+const todayLeft = ((TODAY - GANTT_START) / 86400000 / GANTT_DAYS) * 100;
+
+const ganttDates = Array.from({ length: GANTT_DAYS }, (_, i) => {
+  const d = new Date(GANTT_START);
+  d.setDate(d.getDate() + i);
+  return d;
+});
+
+const formatFileSize = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`;
+
+const STATUS = {
+  delayed:      { label: "지연",  bar: "#F06B6B", bg: "#FEF2F2", text: "#DC2626", count: "#EF4444" },
+  "in-progress":{ label: "진행중", bar: "#34D399", bg: "#ECFDF5", text: "#059669", count: "#10B981" },
+  done:         { label: "완료",  bar: "#60A5FA", bg: "#EFF6FF", text: "#2563EB", count: "#3B82F6" },
+  todo:         { label: "할 일", bar: "#CBD5E1", bg: "#F8FAFC", text: "#64748B", count: "#94A3B8" },
+};
+
+const initialProjects = [
   {
-    id: 1, name: "DNT-4034 원단 개발", color: COLORS[0],
+    id: 1, name: "DNT-4034 원단 개발", color: "#4A90D9", expanded: true,
     tasks: [
-      { id: 1, name: "바이어 샘플 요청 검토", assignee: "김은석", email: "eunseok@woojoo.com", start: "2026-03-20", end: "2026-03-28", status: "In Progress" },
-      { id: 2, name: "포일 프린트 테스트", assignee: "이지은", email: "jieun@woojoo.com", start: "2026-03-25", end: "2026-04-05", status: "Todo" },
-      { id: 3, name: "가먼트 워시 결과 분석", assignee: "박성민", email: "sungmin@woojoo.com", start: "2026-04-01", end: "2026-04-10", status: "Todo" },
+      { id: 1, name: "포일 프린트 테스트",    assignee: "이지은", start: "2026-03-21", end: "2026-04-06", status: "delayed",      memo: "", files: [] },
+      { id: 2, name: "가먼트 워시 결과 분석", assignee: "박성민", start: "2026-03-29", end: "2026-04-12", status: "in-progress",   memo: "", files: [] },
     ],
   },
   {
-    id: 2, name: "Spring/Summer 소싱", color: COLORS[1],
+    id: 2, name: "Spring/Summer 소싱", color: "#10B981", expanded: true,
     tasks: [
-      { id: 4, name: "벤더 미팅 일정 확정", assignee: "김은석", email: "eunseok@woojoo.com", start: "2026-03-15", end: "2026-03-27", status: "Done" },
-      { id: 5, name: "하이게이지 트리코트 샘플 발주", assignee: "이지은", email: "jieun@woojoo.com", start: "2026-03-28", end: "2026-04-15", status: "Todo" },
-      { id: 6, name: "FTA 활용 검토", assignee: "최현아", email: "hyuna@woojoo.com", start: "2026-04-10", end: "2026-04-20", status: "Todo" },
+      { id: 3, name: "벤더 미팅 일정 확정",          assignee: "김은석", start: "2026-03-15", end: "2026-03-25", status: "delayed",    memo: "", files: [] },
+      { id: 4, name: "하이게이지 트리코트 샘플 수령", assignee: "이지은", start: "2026-03-26", end: "2026-04-16", status: "in-progress", memo: "", files: [] },
+      { id: 5, name: "FTA 활용 검토",               assignee: "최현아", start: "2026-04-07", end: "2026-04-16", status: "todo",       memo: "", files: [] },
+      { id: 6, name: "development",                 assignee: "박성민", start: "2026-03-27", end: "2026-04-07", status: "in-progress", memo: "", files: [] },
     ],
   },
   {
-    id: 3, name: "액티브웨어 신규 라인", color: COLORS[2],
+    id: 3, name: "액티브웨어 신규 라인", color: "#EF4444", expanded: true,
     tasks: [
-      { id: 7, name: "GSM 스펙 정의", assignee: "박성민", email: "sungmin@woojoo.com", start: "2026-03-22", end: "2026-04-01", status: "In Progress" },
-      { id: 8, name: "S&R 테스트", assignee: "최현아", email: "hyuna@woojoo.com", start: "2026-04-02", end: "2026-04-12", status: "Todo" },
+      { id: 7, name: "GSM 스펙 정의", assignee: "박성민", start: "2026-03-21", end: "2026-04-01", status: "delayed", memo: "", files: [] },
+      { id: 8, name: "S&R 테스트",    assignee: "최현아", start: "2026-04-03", end: "2026-04-14", status: "done",    memo: "", files: [] },
     ],
   },
 ];
 
-export default function Home() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+function TaskIcon({ status }) {
+  if (status === "done") return (
+    <svg width={16} height={16} viewBox="0 0 16 16" style={{flexShrink:0}}>
+      <circle cx="8" cy="8" r="7" fill="#DBEAFE" stroke="#93C5FD" strokeWidth="1.5"/>
+      <path d="M5 8.5l2 2 4-4" stroke="#3B82F6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+  if (status === "in-progress") return (
+    <svg width={16} height={16} viewBox="0 0 16 16" style={{flexShrink:0}}>
+      <circle cx="8" cy="8" r="7" fill="#D1FAE5" stroke="#6EE7B7" strokeWidth="1.5"/>
+      <path d="M8 4.5v3.5l2.5 1.5" stroke="#10B981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+  if (status === "delayed") return (
+    <svg width={16} height={16} viewBox="0 0 16 16" style={{flexShrink:0}}>
+      <circle cx="8" cy="8" r="7" fill="#FEE2E2" stroke="#FCA5A5" strokeWidth="1.5"/>
+      <path d="M8 4.5v4" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="8" cy="11" r="0.9" fill="#EF4444"/>
+    </svg>
+  );
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" style={{flexShrink:0}}>
+      <circle cx="8" cy="8" r="7" fill="white" stroke="#CBD5E1" strokeWidth="1.5"/>
+    </svg>
+  );
+}
 
-  const [view, setView] = useState("gantt");
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isOnline, setIsOnline] = useState(true);
-  const [modal, setModal] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [expandedProjects, setExpandedProjects] = useState(new Set());
-  const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState(null);
-  const [newTask, setNewTask] = useState({ name: "", assignee: TEAM[0], start: fmt(today), end: fmt(addDays(today, 7)), status: "Todo" });
-  const [projectForm, setProjectForm] = useState({ name: "", color: COLORS[0] });
-  const [editingProject, setEditingProject] = useState(null);
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      setSyncing(true);
-      const res = await fetch("/api/tasks");
-      if (!res.ok) throw new Error("API Error");
-      const data = await res.json();
-      if (data.projects && data.projects.length > 0) {
-        setProjects(data.projects);
-        setExpandedProjects(new Set(data.projects.map((p) => p.id)));
-        setIsOnline(true);
-      } else { throw new Error("Empty"); }
-      setLastSync(new Date());
-    } catch {
-      if (projects.length === 0) {
-        setProjects(DEFAULT_PROJECTS);
-        setExpandedProjects(new Set(DEFAULT_PROJECTS.map((p) => p.id)));
-      }
-      setIsOnline(false);
-    } finally { setLoading(false); setSyncing(false); }
-  }, []);
-
-  useEffect(() => { fetchTasks(); const i = setInterval(fetchTasks, 30000); return () => clearInterval(i); }, [fetchTasks]);
-
-  const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); }, []);
-  const allTasks = useMemo(() => projects.flatMap((p) => p.tasks.map((t) => ({ ...t, projectName: p.name, projectColor: p.color, projectId: p.id }))), [projects]);
-
-  const dateRange = useMemo(() => {
-    if (!allTasks.length) return { start: addDays(today, -7), end: addDays(today, 30) };
-    let min = parseDate(allTasks[0].start), max = parseDate(allTasks[0].end);
-    allTasks.forEach((t) => { const s2 = parseDate(t.start), e = parseDate(t.end); if (s2 < min) min = s2; if (e > max) max = e; });
-    return { start: addDays(min, -3), end: addDays(max, 3) };
-  }, [allTasks, today]);
-
-  const totalDays = diffDays(dateRange.start, dateRange.end);
-
-  const dateHeaders = useMemo(() => {
-    const h = []; let c = new Date(dateRange.start);
-    while (c <= dateRange.end) { h.push({ day: c.getDate(), isWeekend: c.getDay() === 0 || c.getDay() === 6, isToday: fmt(c) === fmt(today), dateStr: fmt(c) }); c = addDays(c, 1); }
-    return h;
-  }, [dateRange, today]);
-
-  const todayIdx = dateHeaders.findIndex((h) => h.isToday);
-  const todayLeft = todayIdx >= 0 ? ((todayIdx + 0.5) / dateHeaders.length) * 100 : -1;
-
-  let nextTaskId = useMemo(() => { let max = 0; projects.forEach((p) => p.tasks.forEach((t) => { if (t.id > max) max = t.id; })); return max + 1; }, [projects]);
-
-  const toggleProject = (id) => { setExpandedProjects((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
-
-  const updateTaskStatus = async (projectId, taskId, status) => {
-    setProjects((prev) => prev.map((p) => p.id === projectId ? { ...p, tasks: p.tasks.map((t) => t.id === taskId ? { ...t, status } : t) } : p));
-    if (isOnline) { try { await fetch("/api/tasks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskId, status }) }); } catch {} }
-    showToast("✓ 상태 변경됨");
-  };
-
-  const handleAddTask = async (projectId) => {
-    const project = projects.find((p) => p.id === projectId);
-    if (!project || !newTask.name) return;
-    const task = { id: nextTaskId++, name: newTask.name, assignee: newTask.assignee, email: EMAILS[newTask.assignee] || "", start: newTask.start, end: newTask.end, status: "Todo", progress: 0 };
-    setProjects((prev) => prev.map((p) => p.id === projectId ? { ...p, tasks: [...p.tasks, task] } : p));
-    setModal(null);
-    setNewTask({ name: "", assignee: TEAM[0], start: fmt(today), end: fmt(addDays(today, 7)), status: "Todo" });
-    if (isOnline) { try { await fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...task, project: project.name }) }); fetchTasks(); } catch {} }
-    showToast("✓ 태스크 추가됨");
-  };
-
-  const handleDeleteTask = async (projectId, taskId) => {
-    setProjects((prev) => prev.map((p) => p.id === projectId ? { ...p, tasks: p.tasks.filter((t) => t.id !== taskId) } : p));
-    if (isOnline) { try { await fetch("/api/tasks", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskId }) }); } catch {} }
-    showToast("✓ 삭제됨");
-  };
-
-  const handleAddProject = () => {
-    if (!projectForm.name.trim()) return;
-    const maxId = projects.reduce((max, p) => Math.max(max, p.id), 0);
-    const np = { id: maxId + 1, name: projectForm.name.trim(), color: projectForm.color, tasks: [] };
-    setProjects((prev) => [...prev, np]);
-    setExpandedProjects((prev) => new Set([...prev, np.id]));
-    setModal(null);
-    setProjectForm({ name: "", color: COLORS[(maxId + 1) % COLORS.length] });
-    showToast("✓ 프로젝트 추가됨");
-  };
-
-  const openEditProject = (project) => { setEditingProject(project); setProjectForm({ name: project.name, color: project.color }); setModal("editProject"); };
-
-  const handleEditProject = () => {
-    if (!projectForm.name.trim() || !editingProject) return;
-    setProjects((prev) => prev.map((p) => p.id === editingProject.id ? { ...p, name: projectForm.name.trim(), color: projectForm.color } : p));
-    setModal(null); setEditingProject(null); setProjectForm({ name: "", color: COLORS[0] });
-    showToast("✓ 프로젝트 수정됨");
-  };
-
-  const handleDeleteProject = (projectId) => {
-    const project = projects.find((p) => p.id === projectId);
-    if (!project) return;
-    if (project.tasks.length > 0 && !confirm(`"${project.name}"에 ${project.tasks.length}개 태스크가 있습니다. 삭제하시겠습니까?`)) return;
-    setProjects((prev) => prev.filter((p) => p.id !== projectId));
-    showToast("✓ 프로젝트 삭제됨");
-  };
-
-  const s = {
-    container: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth: 1100, margin: "0 auto", padding: "16px 20px", color: "#1a1a1a", fontSize: 13, minHeight: "100vh", background: "#fafafa" },
-    header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 },
-    title: { fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: -0.5 },
-    tabs: { display: "flex", gap: 2, background: "#f0f0ec", borderRadius: 8, padding: 2 },
-    tab: (a) => ({ padding: "6px 14px", borderRadius: 6, border: "none", background: a ? "#fff" : "transparent", fontWeight: a ? 600 : 400, fontSize: 12, cursor: "pointer", color: a ? "#1a1a1a" : "#666", boxShadow: a ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }),
-    card: { background: "#fff", border: "1px solid #e8e8e4", borderRadius: 10, overflow: "hidden", marginBottom: 12 },
-    pHeader: { display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid #f0f0ec", userSelect: "none" },
-    dot: (c) => ({ width: 8, height: 8, borderRadius: "50%", background: c, flexShrink: 0 }),
-    ganttRow: { display: "flex", alignItems: "center", borderBottom: "1px solid #f5f5f2", minHeight: 36 },
-    ganttLabel: { width: 200, minWidth: 200, padding: "4px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
-    ganttTrack: { flex: 1, position: "relative", height: 36 },
-    bar: (l, w, c) => ({ position: "absolute", top: 8, height: 20, left: `${l}%`, width: `${Math.max(w, 1)}%`, background: c, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "0 4px" }),
-    todayLine: (l) => ({ position: "absolute", top: 0, bottom: 0, left: `${l}%`, width: 1.5, background: "#EF4444", zIndex: 5, pointerEvents: "none" }),
-    badge: (st) => ({ display: "inline-block", padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 500, background: STATUS_BG[st], color: STATUS_COLORS[st] }),
-    btn: (t) => ({ padding: "6px 14px", borderRadius: 6, border: t === "primary" ? "none" : "1px solid #ddd", background: t === "primary" ? "#378ADD" : "#fff", color: t === "primary" ? "#fff" : "#333", fontSize: 12, fontWeight: 500, cursor: "pointer" }),
-    overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-    modalBox: { background: "#fff", borderRadius: 12, padding: 24, width: 420, maxWidth: "90vw", boxShadow: "0 8px 30px rgba(0,0,0,0.15)" },
-    input: { width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #ddd", fontSize: 12, boxSizing: "border-box" },
-    select: { width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #ddd", fontSize: 12, background: "#fff" },
-    label: { display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4, color: "#666" },
-    ib: { background: "none", border: "none", cursor: "pointer", padding: "2px 6px", fontSize: 13, opacity: 0.4, lineHeight: 1 },
-  };
-
-  const calendarData = useMemo(() => {
-    const y = today.getFullYear(), m = today.getMonth(), fd = new Date(y, m, 1).getDay(), dim = new Date(y, m + 1, 0).getDate();
-    const weeks = []; let week = Array(7).fill(null);
-    for (let d = 1; d <= dim; d++) {
-      const idx = (fd + d - 1) % 7;
-      if (idx === 0 && d > 1) { weeks.push(week); week = Array(7).fill(null); }
-      const ds = fmt(new Date(y, m, d));
-      week[idx] = { day: d, date: ds, tasks: allTasks.filter((t) => t.start <= ds && t.end >= ds), isToday: d === today.getDate() };
-    }
-    weeks.push(week);
-    return { weeks, monthLabel: today.toLocaleDateString("ko-KR", { year: "numeric", month: "long" }) };
-  }, [allTasks, today]);
-
-  if (loading) return (<div style={{ ...s.container, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 28, marginBottom: 12 }}>📊</div><div style={{ fontSize: 14, color: "#666" }}>데이터를 불러오는 중...</div></div></div>);
-
-  const renderProjectHeader = (project) => (
-    <div style={s.pHeader}>
-      <span style={{ fontSize: 10, transform: expandedProjects.has(project.id) ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s", cursor: "pointer" }} onClick={() => toggleProject(project.id)}>▶</span>
-      <span style={s.dot(project.color)} onClick={() => toggleProject(project.id)} />
-      <span style={{ fontWeight: 600, fontSize: 13, flex: 1, cursor: "pointer" }} onClick={() => toggleProject(project.id)}>{project.name}</span>
-      <span style={{ fontSize: 11, color: "#999", marginRight: 8 }}>{project.tasks.length}개</span>
-      <button style={s.ib} onClick={() => openEditProject(project)} title="수정">✏️</button>
-      <button style={s.ib} onClick={() => handleDeleteProject(project.id)} title="삭제">🗑</button>
+function FileChip({ file, onRemove }) {
+  const isImg = file.type?.startsWith("image/");
+  const isPdf = file.type === "application/pdf";
+  const ext = file.name.split(".").pop()?.toUpperCase() || "FILE";
+  const color = isImg ? "#8B5CF6" : isPdf ? "#EF4444" : "#3B82F6";
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:"#F8FAFC", borderRadius:8, border:"1px solid #E2E8F0" }}>
+      <div style={{ width:32,height:36,background:color,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+        <span style={{ color:"white", fontSize:9, fontWeight:700 }}>{ext.slice(0,4)}</span>
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:12, fontWeight:500, color:"#334155", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{file.name}</div>
+        <div style={{ fontSize:11, color:"#94A3B8", marginTop:1 }}>{formatFileSize(file.size)}</div>
+      </div>
+      {isImg && (
+        <a href={file.dataUrl} target="_blank" rel="noopener noreferrer" style={{ color:"#64748B", fontSize:15, textDecoration:"none", flexShrink:0 }}>👁</a>
+      )}
+      <a href={file.dataUrl} download={file.name} style={{ color:"#64748B", fontSize:15, textDecoration:"none", flexShrink:0 }}>⬇</a>
+      <button onClick={onRemove} style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:16,padding:0,flexShrink:0,lineHeight:1 }}>✕</button>
     </div>
   );
+}
+
+// Month spans for gantt header
+const monthSpans = (() => {
+  const spans = [];
+  let cur = null;
+  ganttDates.forEach((d, i) => {
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    if (!cur || cur.key !== key) {
+      if (cur) spans.push(cur);
+      cur = { key, label: `${d.getMonth()+1}월`, start: i, count: 1 };
+    } else {
+      cur.count++;
+    }
+  });
+  if (cur) spans.push(cur);
+  return spans;
+})();
+
+export default function ScheduleManager() {
+  const [projects, setProjects] = useState(initialProjects);
+  const [activeView, setActiveView] = useState("gantt");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [memoTask, setMemoTask]  = useState(null); // {taskId, projectId}
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [showAddTask, setShowAddTask]       = useState(false);
+  const [newProject, setNewProject] = useState({ name:"", color:"#4A90D9" });
+  const [newTask, setNewTask]       = useState({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" });
+  const [dragOver, setDragOver]     = useState(false);
+  const fileInputRef = useRef(null);
+  const [syncTime]   = useState(() => {
+    const n = new Date(); const h = n.getHours(); const ap = h>=12?"오후":"오전";
+    return `${ap} ${h%12||12}:${String(n.getMinutes()).padStart(2,"0")}:${String(n.getSeconds()).padStart(2,"0")}`;
+  });
+
+  const allTasks = projects.flatMap(p => p.tasks);
+  const stats = {
+    all: allTasks.length,
+    "in-progress": allTasks.filter(t=>t.status==="in-progress").length,
+    done:    allTasks.filter(t=>t.status==="done").length,
+    delayed: allTasks.filter(t=>t.status==="delayed").length,
+    todo:    allTasks.filter(t=>t.status==="todo").length,
+  };
+
+  const displayProjects = statusFilter === "all"
+    ? projects
+    : projects.map(p => ({ ...p, tasks: p.tasks.filter(t => t.status === statusFilter) }))
+              .filter(p => p.tasks.length > 0);
+
+  const toggleProject = (id) =>
+    setProjects(ps => ps.map(p => p.id===id ? {...p, expanded:!p.expanded} : p));
+
+  const getMemoData = () => {
+    if (!memoTask) return null;
+    const proj = projects.find(p => p.id === memoTask.projectId);
+    if (!proj) return null;
+    const task = proj.tasks.find(t => t.id === memoTask.taskId);
+    return task ? { task, proj } : null;
+  };
+
+  const updateMemo = (memo) => {
+    if (!memoTask) return;
+    setProjects(ps => ps.map(p => p.id===memoTask.projectId
+      ? {...p, tasks: p.tasks.map(t => t.id===memoTask.taskId ? {...t, memo} : t)}
+      : p));
+  };
+
+  const handleFiles = (fileList) => {
+    if (!memoTask) return;
+    Array.from(fileList).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const fd = { id: Date.now()+Math.random(), name:file.name, size:file.size, type:file.type, dataUrl:e.target.result };
+        setProjects(ps => ps.map(p => p.id===memoTask.projectId
+          ? {...p, tasks: p.tasks.map(t => t.id===memoTask.taskId ? {...t, files:[...t.files,fd]} : t)}
+          : p));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeFile = (fileId) => {
+    if (!memoTask) return;
+    setProjects(ps => ps.map(p => p.id===memoTask.projectId
+      ? {...p, tasks: p.tasks.map(t => t.id===memoTask.taskId ? {...t, files:t.files.filter(f=>f.id!==fileId)} : t)}
+      : p));
+  };
+
+  const addProject = () => {
+    if (!newProject.name.trim()) return;
+    setProjects(ps => [...ps, { id:Date.now(), name:newProject.name, color:newProject.color, expanded:true, tasks:[] }]);
+    setNewProject({ name:"", color:"#4A90D9" }); setShowAddProject(false);
+  };
+
+  const addTask = () => {
+    if (!newTask.name.trim()||!newTask.start||!newTask.end) return;
+    setProjects(ps => ps.map(p => p.id===Number(newTask.projectId)
+      ? {...p, tasks:[...p.tasks,{id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:"",files:[]}]}
+      : p));
+    setNewTask({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" }); setShowAddTask(false);
+  };
+
+  const deleteProject = (id) => {
+    setProjects(ps => ps.filter(p => p.id!==id));
+    if (memoTask?.projectId===id) setMemoTask(null);
+  };
+
+  const upcomingDeadlines = allTasks
+    .filter(t => t.status!=="done")
+    .map(t => ({ ...t, daysLeft: Math.ceil((new Date(t.end)-TODAY)/86400000) }))
+    .filter(t => t.daysLeft<=3)
+    .sort((a,b) => a.daysLeft-b.daysLeft);
+
+  const memoData = getMemoData();
+
+  const inp = { width:"100%", boxSizing:"border-box", padding:"8px 12px", border:"1px solid #E2E8F0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit" };
+  const sel = { ...inp, background:"white" };
 
   return (
-    <>
-      <Head><title>프로젝트 스케줄 - 우주글로벌</title><meta name="viewport" content="width=device-width, initial-scale=1" /></Head>
-      <div style={s.container}>
-        <div style={s.header}>
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", fontFamily:"'Pretendard','Noto Sans KR','Apple SD Gothic Neo',sans-serif" }}>
+      <div style={{ maxWidth:1440, margin:"0 auto", padding:"24px 24px" }}>
+
+        {/* ── Header ── */}
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:20 }}>
           <div>
-            <h1 style={s.title}>프로젝트 스케줄</h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
-              <span style={{ fontSize: 11, color: "#999" }}>오늘: {today.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" })}</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#999" }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: isOnline ? (syncing ? "#F59E0B" : "#1D9E75") : "#EF4444" }} />
-                {isOnline ? (syncing ? "동기화 중..." : lastSync ? `${lastSync.toLocaleTimeString("ko-KR")} 동기화` : "") : "오프라인 모드"}
-                <button onClick={fetchTasks} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: 0, color: "#378ADD" }}>↻</button>
-              </div>
+            <h1 style={{ fontSize:22, fontWeight:700, color:"#0F172A", margin:0 }}>프로젝트 스케줄</h1>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
+              <span style={{ fontSize:12, color:"#94A3B8" }}>오늘: 2026년 4월 6일 월</span>
+              <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, color:"#64748B" }}>
+                <span style={{ width:7,height:7,borderRadius:"50%",background:"#22C55E",display:"inline-block" }}/>
+                {syncTime} 동기화
+                <span style={{ cursor:"pointer", color:"#3B82F6", fontSize:14 }}>↻</span>
+              </span>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={s.tabs}>
-              {[["gantt", "간트"], ["calendar", "캘린더"], ["list", "리스트"]].map(([k, v]) => (
-                <button key={k} style={s.tab(view === k)} onClick={() => setView(k)}>{v}</button>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <div style={{ display:"flex", background:"#E2E8F0", borderRadius:8, padding:3, gap:2 }}>
+              {["gantt","calendar","list"].map(v => (
+                <button key={v} onClick={()=>setActiveView(v)} style={{
+                  padding:"6px 14px", borderRadius:6, border:"none", cursor:"pointer", fontSize:13, fontWeight:500,
+                  background: activeView===v ? "white" : "transparent",
+                  color: activeView===v ? "#0F172A" : "#64748B",
+                  boxShadow: activeView===v ? "0 1px 3px rgba(0,0,0,.1)" : "none",
+                  transition:"all .15s"
+                }}>
+                  {v==="gantt"?"간트":v==="calendar"?"캘린더":"리스트"}
+                </button>
               ))}
             </div>
-            <button style={s.btn("primary")} onClick={() => { setProjectForm({ name: "", color: COLORS[projects.length % COLORS.length] }); setModal("addProject"); }}>+ 프로젝트</button>
-            <button style={s.btn("primary")} onClick={() => setModal("addTask")}>+ 태스크</button>
+            <button onClick={()=>setShowAddProject(true)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:600, background:"#EFF6FF", color:"#3B82F6" }}>
+              + 프로젝트
+            </button>
+            <button onClick={()=>setShowAddTask(true)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:600, background:"#3B82F6", color:"white" }}>
+              + 태스크
+            </button>
           </div>
         </div>
 
-        {!isOnline && (
-          <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", borderRadius: 8, padding: "8px 14px", marginBottom: 12, fontSize: 12, color: "#92400E", display: "flex", alignItems: "center", gap: 8 }}>
-            <span>⚠️ Google Sheets 연결 안 됨 - 오프라인 모드 (데이터가 서버에 저장되지 않습니다)</span>
-            <button onClick={fetchTasks} style={{ marginLeft: "auto", ...s.btn(), padding: "3px 10px", fontSize: 11 }}>재연결</button>
-          </div>
-        )}
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 16 }}>
+        {/* ── Status filter cards ── */}
+        <div style={{ display:"flex", gap:10, marginBottom:20 }}>
+          {/* 전체 */}
           {[
-            { label: "전체", value: allTasks.length, color: "#666" },
-            { label: "진행 중", value: allTasks.filter((t) => t.status === "In Progress").length, color: "#378ADD" },
-            { label: "완료", value: allTasks.filter((t) => t.status === "Done").length, color: "#1D9E75" },
-            { label: "지연", value: allTasks.filter((t) => t.status !== "Done" && parseDate(t.end) < today).length, color: "#EF4444" },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{ textAlign: "center", padding: "10px 8px", background: "#fff", border: "1px solid #e8e8e4", borderRadius: 8 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
-              <div style={{ fontSize: 11, color: "#888" }}>{label}</div>
-            </div>
-          ))}
+            { key:"all", label:"전체",  countColor:"#0F172A", count: stats.all },
+            { key:"in-progress", label:"진행중", countColor: STATUS["in-progress"].count, count: stats["in-progress"] },
+            { key:"done",    label:"완료",  countColor: STATUS.done.count,    count: stats.done    },
+            { key:"delayed", label:"지연",  countColor: STATUS.delayed.count, count: stats.delayed },
+            { key:"todo",    label:"할 일", countColor: STATUS.todo.count,    count: stats.todo    },
+          ].map(({ key, label, countColor, count }) => {
+            const isActive = statusFilter === key;
+            const borderColor = isActive
+              ? (key==="all" ? "#3B82F6" : STATUS[key]?.bar || "#3B82F6")
+              : "#E2E8F0";
+            const bg = isActive
+              ? (key==="all" ? "#EFF6FF" : STATUS[key]?.bg || "#EFF6FF")
+              : "white";
+            return (
+              <button key={key}
+                onClick={() => setStatusFilter(isActive && key!=="all" ? "all" : key)}
+                style={{ flex:1, padding:"14px 8px", borderRadius:12, border:`2px solid ${borderColor}`,
+                  cursor:"pointer", background:bg, textAlign:"center", transition:"all .15s",
+                  boxShadow: isActive ? `0 0 0 3px ${borderColor}22` : "none" }}>
+                <div style={{ fontSize:26, fontWeight:700, color:countColor, lineHeight:1 }}>{count}</div>
+                <div style={{ fontSize:11, color:"#64748B", marginTop:4, fontWeight:500 }}>{label}</div>
+                {isActive && key!=="all" && (
+                  <div style={{ marginTop:6, fontSize:10, color: STATUS[key]?.text, background: STATUS[key]?.bg,
+                    borderRadius:10, padding:"1px 8px", display:"inline-block", fontWeight:600 }}>
+                    필터 적용중
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* 간트 뷰 */}
-        {view === "gantt" && (
-          <div style={{ overflowX: "auto" }}>
-            {projects.map((project) => (
-              <div key={project.id} style={s.card}>
-                {renderProjectHeader(project)}
-                {expandedProjects.has(project.id) && (
-                  <div>
-                    {/* 날짜 헤더 */}
-                    <div style={{ display: "flex", borderBottom: "1px solid #e0e0e0" }}>
-                      <div style={{ width: 200, minWidth: 200, flexShrink: 0 }} />
-                      {dateHeaders.map((h, i) => (
-                        <div key={i} style={{ flex: 1, minWidth: 24, textAlign: "center", fontSize: 9, padding: "4px 0", background: h.isToday ? "#FEF2F2" : h.isWeekend ? "#fafaf5" : "transparent", color: h.isToday ? "#EF4444" : h.isWeekend ? "#bbb" : "#888", fontWeight: h.isToday ? 700 : 400, borderRight: "1px solid #f5f5f2" }}>{h.day}</div>
-                      ))}
+        {/* ── Main content ── */}
+        <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
+          <div style={{ flex:1, minWidth:0 }}>
+
+            {/* ── GANTT VIEW ── */}
+            {activeView==="gantt" && (
+              <div>
+                {statusFilter!=="all" && (
+                  <div style={{ padding:"8px 14px", background: STATUS[statusFilter]?.bg, borderRadius:8, border:`1px solid ${STATUS[statusFilter]?.bar}44`,
+                    fontSize:12, color: STATUS[statusFilter]?.text, fontWeight:600, marginBottom:12, display:"flex", alignItems:"center", gap:6 }}>
+                    <span>🔍</span>
+                    <span>'{STATUS[statusFilter]?.label}' 상태 태스크만 표시 중 ({displayProjects.flatMap(p=>p.tasks).length}건)</span>
+                    <button onClick={()=>setStatusFilter("all")} style={{ marginLeft:"auto", background:"none", border:"none", cursor:"pointer", fontSize:12, color:STATUS[statusFilter]?.text, fontWeight:700 }}>전체 보기 ✕</button>
+                  </div>
+                )}
+
+                {displayProjects.length===0 && (
+                  <div style={{ padding:48, textAlign:"center", color:"#94A3B8", background:"white", borderRadius:12, border:"1px solid #E2E8F0" }}>
+                    <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
+                    <div style={{ fontWeight:600, marginBottom:4 }}>해당 상태의 태스크가 없습니다</div>
+                    <div style={{ fontSize:12 }}>다른 필터를 선택해 보세요</div>
+                  </div>
+                )}
+
+                {displayProjects.map(project => (
+                  <div key={project.id} style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", marginBottom:12, overflow:"hidden" }}>
+
+                    {/* Project header */}
+                    <div style={{ display:"flex", alignItems:"center", padding:"12px 16px",
+                      borderBottom: project.expanded ? "1px solid #F1F5F9" : "none", background:"#FAFAFA" }}>
+                      <button onClick={()=>toggleProject(project.id)}
+                        style={{ background:"none", border:"none", cursor:"pointer", padding:0, marginRight:6, color:"#64748B", fontSize:11 }}>
+                        {project.expanded?"▼":"▶"}
+                      </button>
+                      <div style={{ width:9,height:9,borderRadius:"50%",background:project.color,marginRight:8,flexShrink:0 }}/>
+                      <span style={{ fontWeight:700, fontSize:14, color:"#0F172A" }}>{project.name}</span>
+                      <span style={{ marginLeft:"auto", fontSize:11, color:"#94A3B8", marginRight:10 }}>{project.tasks.length}개</span>
+                      <button onClick={()=>deleteProject(project.id)}
+                        style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:14,padding:"2px 4px",borderRadius:4,lineHeight:1 }}>🗑</button>
                     </div>
-                    {/* 태스크 행 */}
-                    {project.tasks.map((task) => {
-                      const startIdx = dateHeaders.findIndex((h) => h.dateStr === task.start);
-                      const endIdx = dateHeaders.findIndex((h) => h.dateStr === task.end);
-                      const ov = task.status !== "Done" && parseDate(task.end) < today;
-                      const barColor = ov ? "#EF4444" : task.status === "Done" ? "#1D9E75" : project.color;
-                      return (
-                        <div key={task.id} style={{ display: "flex", borderBottom: "1px solid #f5f5f2", minHeight: 36 }}>
-                          <div style={s.ganttLabel}>
-                            <span style={{ ...s.badge(task.status), fontSize: 9, padding: "1px 5px" }}>{task.status === "Done" ? "✓" : task.status === "In Progress" ? "◐" : "○"}</span>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
+
+                    {project.expanded && (
+                      <div style={{ overflowX:"auto" }}>
+                        <div style={{ minWidth:700 }}>
+                          {/* Month header */}
+                          <div style={{ display:"flex", borderBottom:"1px solid #F1F5F9" }}>
+                            <div style={{ width:220, flexShrink:0 }}/>
+                            <div style={{ flex:1, display:"flex" }}>
+                              {monthSpans.map((ms,i) => (
+                                <div key={i} style={{ width:`${(ms.count/GANTT_DAYS)*100}%`, padding:"4px 0", textAlign:"center",
+                                  fontSize:11, fontWeight:700, color:"#64748B", borderLeft: i>0?"1px solid #E2E8F0":undefined }}>
+                                  {ms.label}
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          {/* 날짜 셀들 - 헤더와 동일한 flex 구조 */}
-                          {dateHeaders.map((h, i) => {
-                            const isInBar = i >= startIdx && i <= endIdx && startIdx >= 0;
-                            const isBarStart = i === startIdx && startIdx >= 0;
-                            const isBarEnd = i === endIdx && endIdx >= 0;
-                            return (
-                              <div key={i} style={{ flex: 1, minWidth: 24, position: "relative", height: 36 }}>
-                                {/* 오늘 세로선 - 셀 중앙에 정확히 배치 */}
-                                {h.isToday && <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 2, background: "#EF4444", zIndex: 5, transform: "translateX(-50)" }} />}
-                                {/* 바 조각 - 연결되어 보이도록 */}
-                                {isInBar && (
-                                  <div style={{
-                                    position: "absolute", top: 8, bottom: 8,
-                                    left: isBarStart ? 1 : 0,
-                                    right: isBarEnd ? 1 : 0,
-                                    background: barColor,
-                                    opacity: task.status === "Done" ? 0.6 : 1,
-                                    borderRadius: isBarStart && isBarEnd ? 4 : isBarStart ? "4px 0 0 4px" : isBarEnd ? "0 4px 4px 0" : 0,
-                                  }} title={`${task.name}\n${task.assignee} | ${task.start} → ${task.end}`} />
-                                )}
-                                {/* 바 중앙 셀에만 이름 오버레이 */}
-                                {isInBar && startIdx >= 0 && i === Math.floor((startIdx + endIdx) / 2) && (
-                                  <div style={{ position: "absolute", top: 8, bottom: 8, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3, pointerEvents: "none" }}>
-                                    <span style={{ fontSize: 10, color: "#fff", fontWeight: 500, whiteSpace: "nowrap" }}>{task.assignee}</span>
+
+                          {/* Day header */}
+                          <div style={{ display:"flex", borderBottom:"1px solid #F1F5F9" }}>
+                            <div style={{ width:220, flexShrink:0, borderRight:"1px solid #F1F5F9" }}/>
+                            <div style={{ flex:1, display:"flex" }}>
+                              {ganttDates.map((d,i) => {
+                                const isToday = d.toDateString()===TODAY.toDateString();
+                                const isWknd  = d.getDay()===0||d.getDay()===6;
+                                return (
+                                  <div key={i} style={{ flex:1, textAlign:"center", padding:"5px 0",
+                                    fontSize:10, fontWeight: isToday?700:400,
+                                    color: isToday?"#EF4444" : isWknd?"#CBD5E1":"#94A3B8",
+                                    background: isToday?"#FFF1F2":isWknd?"#FAFAFA":"transparent" }}>
+                                    {d.getDate()}
                                   </div>
-                                )}
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Task rows */}
+                          {project.tasks.map(task => {
+                            const sc = STATUS[task.status];
+                            const hasMemo = !!task.memo;
+                            const hasFiles = task.files.length > 0;
+                            return (
+                              <div key={task.id} style={{ display:"flex", alignItems:"center", borderBottom:"1px solid #F8FAFC", minHeight:42 }}>
+                                <div style={{ width:220, flexShrink:0, padding:"0 12px", display:"flex", alignItems:"center", gap:7, borderRight:"1px solid #F1F5F9" }}>
+                                  <TaskIcon status={task.status}/>
+                                  <button onClick={()=>setMemoTask({taskId:task.id,projectId:project.id})}
+                                    style={{ background:"none",border:"none",cursor:"pointer",padding:0,textAlign:"left",
+                                      fontSize:12,color:"#334155",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:155,
+                                      display:"flex",alignItems:"center",gap:3 }}>
+                                    <span style={{ overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{task.name}</span>
+                                    {hasMemo && <span style={{ fontSize:10, flexShrink:0 }}>📝</span>}
+                                    {hasFiles && <span style={{ fontSize:10, flexShrink:0 }}>📎</span>}
+                                  </button>
+                                </div>
+
+                                <div style={{ flex:1, position:"relative", height:42 }}>
+                                  {/* Weekend shading */}
+                                  {ganttDates.map((d,i) => (d.getDay()===0||d.getDay()===6) ? (
+                                    <div key={i} style={{ position:"absolute",top:0,bottom:0,
+                                      left:`${(i/GANTT_DAYS)*100}%`, width:`${(1/GANTT_DAYS)*100}%`, background:"#F8FAFC" }}/>
+                                  ) : null)}
+
+                                  {/* Today line */}
+                                  <div style={{ position:"absolute",top:0,bottom:0,left:`${todayLeft}%`,
+                                    width:2, background:"#EF4444", opacity:.7, zIndex:3 }}/>
+
+                                  {/* Task bar */}
+                                  <div style={{
+                                    position:"absolute", top:"50%", transform:"translateY(-50%)",
+                                    left:`${getLeft(task.start)}%`, width:`${getWidth(task.start,task.end)}%`,
+                                    height:26, background: sc.bar, borderRadius:5, zIndex:4,
+                                    display:"flex", alignItems:"center", justifyContent:"center",
+                                    cursor:"pointer", transition:"filter .1s"
+                                  }}
+                                    onClick={()=>setMemoTask({taskId:task.id,projectId:project.id})}
+                                    title={`${task.name} (${task.assignee})`}>
+                                    <span style={{ fontSize:10,color:"white",fontWeight:700,padding:"0 6px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                                      {task.assignee}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
                             );
                           })}
                         </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── CALENDAR VIEW (stub) ── */}
+            {activeView==="calendar" && (
+              <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", padding:40, textAlign:"center" }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>📅</div>
+                <div style={{ fontSize:16, fontWeight:600, color:"#334155", marginBottom:6 }}>캘린더 뷰</div>
+                <div style={{ fontSize:13, color:"#94A3B8" }}>준비중입니다</div>
+              </div>
+            )}
+
+            {/* ── LIST VIEW ── */}
+            {activeView==="list" && (
+              <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", overflow:"hidden" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                  <thead>
+                    <tr style={{ background:"#F8FAFC", borderBottom:"1px solid #E2E8F0" }}>
+                      {["태스크","프로젝트","담당자","시작일","종료일","상태","메모"].map(h=>(
+                        <th key={h} style={{ padding:"10px 14px", textAlign:"left", color:"#64748B", fontWeight:600, whiteSpace:"nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(statusFilter==="all" ? allTasks : allTasks.filter(t=>t.status===statusFilter)).map(task => {
+                      const proj = projects.find(p => p.tasks.some(t=>t.id===task.id));
+                      const sc = STATUS[task.status];
+                      return (
+                        <tr key={task.id} style={{ borderBottom:"1px solid #F1F5F9" }}
+                          onMouseEnter={e=>e.currentTarget.style.background="#FAFAFA"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <td style={{ padding:"11px 14px" }}>
+                            <button onClick={()=>setMemoTask({taskId:task.id,projectId:proj?.id})}
+                              style={{ background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#334155",fontWeight:600,padding:0,textAlign:"left" }}>
+                              {task.name}
+                            </button>
+                          </td>
+                          <td style={{ padding:"11px 14px", color:"#64748B" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                              <div style={{ width:8,height:8,borderRadius:"50%",background:proj?.color }}/>
+                              {proj?.name}
+                            </div>
+                          </td>
+                          <td style={{ padding:"11px 14px", color:"#64748B" }}>{task.assignee}</td>
+                          <td style={{ padding:"11px 14px", color:"#64748B", whiteSpace:"nowrap" }}>{task.start}</td>
+                          <td style={{ padding:"11px 14px", color:"#64748B", whiteSpace:"nowrap" }}>{task.end}</td>
+                          <td style={{ padding:"11px 14px" }}>
+                            <span style={{ padding:"3px 10px", borderRadius:6, background:sc?.bg, color:sc?.text, fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>
+                              {sc?.label}
+                            </span>
+                          </td>
+                          <td style={{ padding:"11px 14px" }}>
+                            <button onClick={()=>setMemoTask({taskId:task.id,projectId:proj?.id})}
+                              style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#3B82F6",padding:0 }}>
+                              {task.memo||task.files.length>0 ? "📝 보기" : "메모 추가"}
+                            </button>
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            )}
           </div>
-        )}
 
-        {/* 캘린더 뷰 */}
-        {view === "calendar" && (
-          <div>
-            <h3 style={{ textAlign: "center", fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{calendarData.monthLabel}</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, background: "#e0e0e0", borderRadius: 10, overflow: "hidden" }}>
-              {["일","월","화","수","목","금","토"].map((d) => (<div key={d} style={{ background: "#f5f5f0", padding: "6px 0", textAlign: "center", fontSize: 11, fontWeight: 600, color: "#888" }}>{d}</div>))}
-              {calendarData.weeks.flat().map((cell, i) => (
-                <div key={i} style={{ background: "#fff", minHeight: 80, padding: 4 }}>
-                  {cell && <>
-                    <div style={{ fontSize: 11, fontWeight: cell.isToday ? 700 : 400, color: cell.isToday ? "#EF4444" : "#333", marginBottom: 2 }}>{cell.isToday ? `● ${cell.day}` : cell.day}</div>
-                    {cell.tasks.slice(0, 3).map((t) => (<div key={t.id} style={{ fontSize: 9, padding: "1px 4px", marginBottom: 1, borderRadius: 3, background: t.projectColor + "18", color: t.projectColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{t.name}</div>))}
-                    {cell.tasks.length > 3 && <div style={{ fontSize: 9, color: "#999" }}>+{cell.tasks.length - 3}개</div>}
-                  </>}
+          {/* ── Deadline sidebar ── */}
+          {upcomingDeadlines.length>0 && !memoTask && (
+            <div style={{ width:210, flexShrink:0 }}>
+              <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", padding:16 }}>
+                <div style={{ fontSize:12,fontWeight:700,color:"#EF4444",marginBottom:12,display:"flex",alignItems:"center",gap:5 }}>
+                  ⚠️ 마감 임박
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 리스트 뷰 */}
-        {view === "list" && (
-          <div>
-            {projects.map((project) => (
-              <div key={project.id} style={s.card}>
-                {renderProjectHeader(project)}
-                {expandedProjects.has(project.id) && project.tasks.map((task) => {
-                  const ov = task.status !== "Done" && parseDate(task.end) < today;
-                  const dl = diffDays(today, parseDate(task.end));
-                  return (
-                    <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", borderBottom: "1px solid #f5f5f2", flexWrap: "wrap" }}>
-                      <span style={s.badge(task.status)}>{task.status}</span>
-                      <span style={{ fontWeight: 500, fontSize: 13, flex: 1, minWidth: 120 }}>{task.name}</span>
-                      <span style={{ fontSize: 11, color: "#888" }}>{task.assignee}</span>
-                      <span style={{ fontSize: 11, color: "#aaa" }}>{task.start} → {task.end}</span>
-                      {ov && <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 600 }}>⚠ {Math.abs(dl)}일 초과</span>}
-                      {!ov && task.status !== "Done" && dl <= 3 && dl >= 0 && <span style={{ fontSize: 10, color: "#F59E0B", fontWeight: 600 }}>⏰ D-{dl}</span>}
-                      <div style={{ display: "flex", gap: 2 }}>
-                        <select style={{ ...s.select, width: "auto", padding: "2px 6px", fontSize: 11 }} value={task.status} onChange={(e) => updateTaskStatus(project.id, task.id, e.target.value)}>
-                          <option value="Todo">Todo</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Done">Done</option>
-                        </select>
-                        <button style={s.ib} onClick={() => handleDeleteTask(project.id, task.id)}>🗑</button>
-                      </div>
+                {upcomingDeadlines.map(t=>(
+                  <div key={t.id} style={{ padding:"8px 0", borderBottom:"1px solid #F8FAFC" }}>
+                    <div style={{ fontSize:12,fontWeight:500,color:"#334155",lineHeight:1.4 }}>{t.name}</div>
+                    <div style={{ fontSize:11,marginTop:3, color: t.daysLeft<0?"#EF4444":t.daysLeft===0?"#F97316":"#F59E0B",fontWeight:600 }}>
+                      {t.daysLeft<0?`${Math.abs(t.daysLeft)}일 초과`:t.daysLeft===0?"오늘 마감":`D-${t.daysLeft}`}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* 태스크 추가 모달 */}
-        {modal === "addTask" && (
-          <div style={s.overlay} onClick={() => setModal(null)}>
-            <div style={s.modalBox} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>태스크 추가</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div><label style={s.label}>프로젝트</label><select style={s.select} onChange={(e) => setNewTask((t) => ({ ...t, _projectId: Number(e.target.value) }))}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-                <div><label style={s.label}>태스크명</label><input style={s.input} value={newTask.name} onChange={(e) => setNewTask((t) => ({ ...t, name: e.target.value }))} placeholder="태스크 이름 입력" /></div>
-                <div><label style={s.label}>담당자</label><select style={s.select} value={newTask.assignee} onChange={(e) => setNewTask((t) => ({ ...t, assignee: e.target.value }))}>{TEAM.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ flex: 1 }}><label style={s.label}>시작일</label><input style={s.input} type="date" value={newTask.start} onChange={(e) => setNewTask((t) => ({ ...t, start: e.target.value }))} /></div>
-                  <div style={{ flex: 1 }}><label style={s.label}>종료일</label><input style={s.input} type="date" value={newTask.end} onChange={(e) => setNewTask((t) => ({ ...t, end: e.target.value }))} /></div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-                <button style={s.btn()} onClick={() => setModal(null)}>취소</button>
-                <button style={s.btn("primary")} onClick={() => handleAddTask(newTask._projectId || projects[0]?.id)} disabled={!newTask.name}>추가</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 프로젝트 추가 모달 */}
-        {modal === "addProject" && (
-          <div style={s.overlay} onClick={() => setModal(null)}>
-            <div style={s.modalBox} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>프로젝트 추가</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div><label style={s.label}>프로젝트명</label><input style={s.input} value={projectForm.name} onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))} placeholder="프로젝트 이름 입력" autoFocus /></div>
-                <div>
-                  <label style={s.label}>색상</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {COLORS.map((c) => (<button key={c} onClick={() => setProjectForm((f) => ({ ...f, color: c }))} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: projectForm.color === c ? "3px solid #333" : "2px solid transparent", cursor: "pointer" }} />))}
                   </div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-                <button style={s.btn()} onClick={() => setModal(null)}>취소</button>
-                <button style={s.btn("primary")} onClick={handleAddProject} disabled={!projectForm.name.trim()}>추가</button>
+                ))}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* 프로젝트 수정 모달 */}
-        {modal === "editProject" && (
-          <div style={s.overlay} onClick={() => setModal(null)}>
-            <div style={s.modalBox} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>프로젝트 수정</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div><label style={s.label}>프로젝트명</label><input style={s.input} value={projectForm.name} onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))} autoFocus /></div>
-                <div>
-                  <label style={s.label}>색상</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {COLORS.map((c) => (<button key={c} onClick={() => setProjectForm((f) => ({ ...f, color: c }))} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: projectForm.color === c ? "3px solid #333" : "2px solid transparent", cursor: "pointer" }} />))}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
-                <button style={s.btn()} onClick={() => setModal(null)}>취소</button>
-                <button style={s.btn("primary")} onClick={handleEditProject} disabled={!projectForm.name.trim()}>저장</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {toast && (<div style={{ position: "fixed", bottom: 24, right: 24, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: "10px 18px", fontSize: 13, boxShadow: "0 2px 8px rgba(0,0,0,0.1)", zIndex: 9999 }}>{toast}</div>)}
+          )}
+        </div>
       </div>
-    </>
+
+      {/* ──────────────────────────────── MEMO PANEL ──────────────────────────────── */}
+      {memoTask && memoData && (
+        <>
+          <div onClick={()=>setMemoTask(null)} style={{ position:"fixed",inset:0,background:"rgba(15,23,42,0.25)",zIndex:40 }}/>
+          <div style={{ position:"fixed",top:0,right:0,bottom:0,width:420,background:"white",zIndex:50,
+            display:"flex",flexDirection:"column",boxShadow:"-6px 0 32px rgba(0,0,0,0.12)" }}>
+
+            {/* Panel header */}
+            <div style={{ padding:"20px 20px 16px", borderBottom:"1px solid #E2E8F0", flexShrink:0 }}>
+              <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12 }}>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
+                    <div style={{ width:8,height:8,borderRadius:"50%",background:memoData.proj.color,flexShrink:0 }}/>
+                    <span style={{ fontSize:11,color:"#94A3B8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{memoData.proj.name}</span>
+                  </div>
+                  <div style={{ fontSize:16,fontWeight:700,color:"#0F172A",lineHeight:1.3 }}>{memoData.task.name}</div>
+                </div>
+                <button onClick={()=>setMemoTask(null)}
+                  style={{ background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#94A3B8",padding:4,marginLeft:8,lineHeight:1,flexShrink:0 }}>✕</button>
+              </div>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                <span style={{ padding:"3px 10px",borderRadius:20,background:STATUS[memoData.task.status]?.bg,color:STATUS[memoData.task.status]?.text,fontSize:11,fontWeight:700 }}>
+                  {STATUS[memoData.task.status]?.label}
+                </span>
+                <span style={{ padding:"3px 10px",borderRadius:20,background:"#F1F5F9",color:"#64748B",fontSize:11 }}>
+                  👤 {memoData.task.assignee}
+                </span>
+                <span style={{ padding:"3px 10px",borderRadius:20,background:"#F1F5F9",color:"#64748B",fontSize:11,whiteSpace:"nowrap" }}>
+                  📅 {memoData.task.start} ~ {memoData.task.end}
+                </span>
+              </div>
+            </div>
+
+            {/* Scrollable body */}
+            <div style={{ flex:1,overflowY:"auto",display:"flex",flexDirection:"column" }}>
+              {/* Memo text */}
+              <div style={{ padding:"18px 20px",borderBottom:"1px solid #F1F5F9" }}>
+                <div style={{ fontSize:13,fontWeight:700,color:"#334155",marginBottom:8,display:"flex",alignItems:"center",gap:5 }}>
+                  📝 메모
+                </div>
+                <textarea
+                  value={memoData.task.memo}
+                  onChange={e=>updateMemo(e.target.value)}
+                  placeholder={"태스크에 대한 메모를 입력하세요.\n\n진행 상황, 참고 사항, 이슈, 커뮤니케이션 내용 등을 자유롭게 기록할 수 있습니다."}
+                  style={{ width:"100%",boxSizing:"border-box",minHeight:180,border:"1px solid #E2E8F0",
+                    borderRadius:8,padding:"12px",fontSize:13,color:"#334155",resize:"vertical",
+                    fontFamily:"inherit",lineHeight:1.7,outline:"none",background:"#FAFAFA" }}
+                  onFocus={e=>e.target.style.background="white"}
+                  onBlur={e=>e.target.style.background="#FAFAFA"}
+                />
+                <div style={{ fontSize:11,color:"#CBD5E1",marginTop:4,textAlign:"right" }}>{memoData.task.memo.length}자</div>
+              </div>
+
+              {/* File attachments */}
+              <div style={{ padding:"18px 20px",flex:1 }}>
+                <div style={{ fontSize:13,fontWeight:700,color:"#334155",marginBottom:12,display:"flex",alignItems:"center",gap:5 }}>
+                  📎 첨부파일
+                  <span style={{ fontSize:11,color:"#94A3B8",fontWeight:400 }}>({memoData.task.files.length}개)</span>
+                </div>
+
+                {/* Drop zone */}
+                <div
+                  onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+                  onDragLeave={()=>setDragOver(false)}
+                  onDrop={e=>{e.preventDefault();setDragOver(false);handleFiles(e.dataTransfer.files);}}
+                  onClick={()=>fileInputRef.current?.click()}
+                  style={{ border:`2px dashed ${dragOver?"#3B82F6":"#CBD5E1"}`,borderRadius:10,
+                    padding:"22px 16px",textAlign:"center",cursor:"pointer",
+                    background:dragOver?"#EFF6FF":"#F8FAFC",transition:"all .15s",marginBottom:14 }}>
+                  <div style={{ fontSize:28,marginBottom:6 }}>📁</div>
+                  <div style={{ fontSize:12,color:"#64748B",fontWeight:600 }}>파일을 드래그하거나 클릭하여 업로드</div>
+                  <div style={{ fontSize:11,color:"#94A3B8",marginTop:3 }}>이미지, PDF, 문서 등 모든 형식 지원</div>
+                </div>
+                <input ref={fileInputRef} type="file" multiple style={{ display:"none" }} onChange={e=>handleFiles(e.target.files)}/>
+
+                {/* File list */}
+                <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                  {memoData.task.files.map(file=>(
+                    <FileChip key={file.id} file={file} onRemove={()=>removeFile(file.id)}/>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ──────────────────────────────── MODALS ──────────────────────────────── */}
+      {(showAddProject||showAddTask) && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <div style={{ background:"white",borderRadius:16,padding:24,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
+            {showAddProject && (
+              <>
+                <h3 style={{ margin:"0 0 18px",fontSize:15,fontWeight:700,color:"#0F172A" }}>새 프로젝트 추가</h3>
+                <div style={{ marginBottom:14 }}>
+                  <label style={{ fontSize:12,color:"#64748B",fontWeight:600,display:"block",marginBottom:5 }}>프로젝트명</label>
+                  <input value={newProject.name} onChange={e=>setNewProject(p=>({...p,name:e.target.value}))} placeholder="프로젝트 이름 입력" style={inp}/>
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={{ fontSize:12,color:"#64748B",fontWeight:600,display:"block",marginBottom:8 }}>색상</label>
+                  <div style={{ display:"flex",gap:8 }}>
+                    {["#4A90D9","#10B981","#EF4444","#8B5CF6","#F59E0B","#EC4899","#0EA5E9","#64748B"].map(c=>(
+                      <button key={c} onClick={()=>setNewProject(p=>({...p,color:c}))}
+                        style={{ width:26,height:26,borderRadius:"50%",background:c,border:newProject.color===c?"3px solid #0F172A":"2px solid transparent",cursor:"pointer" }}/>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display:"flex",gap:8,justifyContent:"flex-end" }}>
+                  <button onClick={()=>setShowAddProject(false)} style={{ padding:"8px 16px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#64748B" }}>취소</button>
+                  <button onClick={addProject} style={{ padding:"8px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700 }}>추가</button>
+                </div>
+              </>
+            )}
+
+            {showAddTask && (
+              <>
+                <h3 style={{ margin:"0 0 18px",fontSize:15,fontWeight:700,color:"#0F172A" }}>새 태스크 추가</h3>
+                {[
+                  {label:"태스크명",key:"name",type:"text",placeholder:"태스크 이름 입력"},
+                  {label:"담당자",key:"assignee",type:"text",placeholder:"담당자 이름"},
+                  {label:"시작일",key:"start",type:"date"},
+                  {label:"종료일",key:"end",type:"date"},
+                ].map(({label,key,type,placeholder})=>(
+                  <div key={key} style={{ marginBottom:11 }}>
+                    <label style={{ fontSize:12,color:"#64748B",fontWeight:600,display:"block",marginBottom:4 }}>{label}</label>
+                    <input type={type} value={newTask[key]} onChange={e=>setNewTask(t=>({...t,[key]:e.target.value}))} placeholder={placeholder} style={inp}/>
+                  </div>
+                ))}
+                <div style={{ marginBottom:11 }}>
+                  <label style={{ fontSize:12,color:"#64748B",fontWeight:600,display:"block",marginBottom:4 }}>프로젝트</label>
+                  <select value={newTask.projectId} onChange={e=>setNewTask(t=>({...t,projectId:Number(e.target.value)}))} style={sel}>
+                    {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={{ fontSize:12,color:"#64748B",fontWeight:600,display:"block",marginBottom:4 }}>상태</label>
+                  <select value={newTask.status} onChange={e=>setNewTask(t=>({...t,status:e.target.value}))} style={sel}>
+                    <option value="todo">할 일</option>
+                    <option value="in-progress">진행중</option>
+                    <option value="done">완료</option>
+                    <option value="delayed">지연</option>
+                  </select>
+                </div>
+                <div style={{ display:"flex",gap:8,justifyContent:"flex-end" }}>
+                  <button onClick={()=>setShowAddTask(false)} style={{ padding:"8px 16px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#64748B" }}>취소</button>
+                  <button onClick={addTask} style={{ padding:"8px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700 }}>추가</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
