@@ -10,8 +10,8 @@ const parseDate = (s) => new Date(s + "T00:00:00");
 const diffDays = (a, b) => Math.round((b - a) / 86400000);
 const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 
-const TEAM = ["김은석", "이지은", "박성민", "최현아"];
-const EMAILS = { 김은석: "eunseok@woojoo.com", 이지은: "jieun@woojoo.com", 박성민: "sungmin@woojoo.com", 최현아: "hyuna@woojoo.com" };
+const TEAM = ["길경택", "양은석", "김용식", "이선교", "노동현", "김용주"];
+const EMAILS = { 길경택: "ktgil@woojooglobal.com", 양은석: "esyang@woojooglobal.com", 김용식: "roykim@woojooglobal.com", 이선교: "lsk@woojooglobal.com", "노동현: dhnoh@woojooglobal.com", "김용주: yjkim@woojooglobal.com" };
 
 export default function Home() {
   const today = new Date();
