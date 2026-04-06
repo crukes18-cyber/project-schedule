@@ -267,39 +267,70 @@ export default function Home() {
         {/* 간트 뷰 */}
         {view === "gantt" && (
           <div style={{ overflowX: "auto" }}>
-            <div style={{ display: "flex", marginLeft: 200, borderBottom: "1px solid #e0e0e0" }}>
-              <div style={{ flex: 1, display: "flex" }}>
-                {dateHeaders.map((h, i) => (
-                  <div key={i} style={{ flex: 1, minWidth: 24, textAlign: "center", fontSize: 9, padding: "4px 0", background: h.isToday ? "#FEF2F2" : h.isWeekend ? "#fafaf5" : "transparent", color: h.isToday ? "#EF4444" : h.isWeekend ? "#bbb" : "#888", fontWeight: h.isToday ? 700 : 400, borderRight: "1px solid #f5f5f2" }}>{h.day}</div>
-                ))}
-              </div>
-            </div>
             {projects.map((project) => (
               <div key={project.id} style={s.card}>
                 {renderProjectHeader(project)}
-                {expandedProjects.has(project.id) && project.tasks.map((task) => {
-                  const startIdx = dateHeaders.findIndex((h) => h.dateStr === task.start);
-                  const endIdx = dateHeaders.findIndex((h) => h.dateStr === task.end);
-                  const si = startIdx >= 0 ? startIdx : diffDays(dateRange.start, parseDate(task.start));
-                  const ei = endIdx >= 0 ? endIdx : diffDays(dateRange.start, parseDate(task.end));
-                  const l = (si / dateHeaders.length) * 100;
-                  const w = ((ei - si + 1) / dateHeaders.length) * 100;
-                  const ov = task.status !== "Done" && parseDate(task.end) < today;
-                  return (
-                    <div key={task.id} style={s.ganttRow}>
-                      <div style={s.ganttLabel}>
-                        <span style={{ ...s.badge(task.status), fontSize: 9, padding: "1px 5px" }}>{task.status === "Done" ? "✓" : task.status === "In Progress" ? "◐" : "○"}</span>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
-                      </div>
-                      <div style={s.ganttTrack}>
-                        {todayLeft >= 0 && <div style={s.todayLine(todayLeft)} />}
-                        <div style={{ ...s.bar(l, w, ov ? "#EF4444" : task.status === "Done" ? "#1D9E75" : project.color), opacity: task.status === "Done" ? 0.6 : 1 }} title={`${task.name}\n${task.assignee} | ${task.start} → ${task.end}`}>
-                          <span>{task.assignee}</span>
-                        </div>
-                      </div>
+                {expandedProjects.has(project.id) && (
+                  <div>
+                    {/* 날짜 헤더 */}
+                    <div style={{ display: "flex", borderBottom: "1px solid #e0e0e0" }}>
+                      <div style={{ width: 200, minWidth: 200, flexShrink: 0 }} />
+                      {dateHeaders.map((h, i) => (
+                        <div key={i} style={{ flex: 1, minWidth: 24, textAlign: "center", fontSize: 9, padding: "4px 0", background: h.isToday ? "#FEF2F2" : h.isWeekend ? "#fafaf5" : "transparent", color: h.isToday ? "#EF4444" : h.isWeekend ? "#bbb" : "#888", fontWeight: h.isToday ? 700 : 400, borderRight: "1px solid #f5f5f2" }}>{h.day}</div>
+                      ))}
                     </div>
-                  );
-                })}
+                    {/* 태스크 행 */}
+                    {project.tasks.map((task) => {
+                      const startIdx = dateHeaders.findIndex((h) => h.dateStr === task.start);
+                      const endIdx = dateHeaders.findIndex((h) => h.dateStr === task.end);
+                      const ov = task.status !== "Done" && parseDate(task.end) < today;
+                      const barColor = ov ? "#EF4444" : task.status === "Done" ? "#1D9E75" : project.color;
+                      return (
+                        <div key={task.id} style={{ display: "flex", borderBottom: "1px solid #f5f5f2", minHeight: 36 }}>
+                          <div style={s.ganttLabel}>
+                            <span style={{ ...s.badge(task.status), fontSize: 9, padding: "1px 5px" }}>{task.status === "Done" ? "✓" : task.status === "In Progress" ? "◐" : "○"}</span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</span>
+                          </div>
+                          {dateHeaders.map((h, i) => {
+                            const isInBar = i >= startIdx && i <= endIdx && startIdx >= 0;
+                            const isBarStart = i === startIdx && startIdx >= 0;
+                            const isBarEnd = i === endIdx && endIdx >= 0;
+                            const isToday = h.isToday;
+                            return (
+                              <div key={i} style={{
+                                flex: 1, minWidth: 24, position: "relative", display: "flex", alignItems: "center",
+                                borderRight: "1px solid #f8f8f5",
+                              }}>
+                                {/* 오늘 세로선 */}
+                                {isToday && <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 2, background: "#EF4444", zIndex: 5, transform: "translateX(-50%)" }} />}
+                                {/* 간트 바 */}
+                                {isInBar && (
+                                  <div style={{
+                                    position: "absolute", top: 8, bottom: 8,
+                                    left: isBarStart ? 2 : 0,
+                                    right: isBarEnd ? 2 : 0,
+                                    background: barColor,
+                                    opacity: task.status === "Done" ? 0.6 : 1,
+                                    borderRadius: isBarStart && isBarEnd ? 4 : isBarStart ? "4px 0 0 4px" : isBarEnd ? "0 4px 4px 0" : 0,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    overflow: "hidden",
+                                  }}
+                                    title={`${task.name}\n${task.assignee} | ${task.start} → ${task.end}`}
+                                  >
+                                    {/* 바 중앙에만 이름 표시 */}
+                                    {startIdx >= 0 && i === Math.floor((startIdx + endIdx) / 2) && (
+                                      <span style={{ fontSize: 10, color: "#fff", fontWeight: 500, whiteSpace: "nowrap" }}>{task.assignee}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
