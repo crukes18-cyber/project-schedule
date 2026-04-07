@@ -111,6 +111,8 @@ export default function ScheduleManager() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newProject, setNewProject] = useState({ name:"", color:"#4A90D9" });
   const [newTask, setNewTask] = useState({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" });
+  const [calYear, setCalYear] = useState(TODAY.getFullYear());
+  const [calMonth, setCalMonth] = useState(TODAY.getMonth());
   const [syncTime] = useState(() => {
     const n = new Date(); const h = n.getHours(); const ap = h>=12?"오후":"오전";
     return `${ap} ${h%12||12}:${String(n.getMinutes()).padStart(2,"0")}:${String(n.getSeconds()).padStart(2,"0")}`;
@@ -365,13 +367,113 @@ export default function ScheduleManager() {
               </div>
             )}
 
-            {activeView==="calendar" && (
-              <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", padding:40, textAlign:"center" }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>📅</div>
-                <div style={{ fontSize:16, fontWeight:600, color:"#334155", marginBottom:6 }}>캘린더 뷰</div>
-                <div style={{ fontSize:13, color:"#94A3B8" }}>준비중입니다</div>
-              </div>
-            )}
+            {activeView==="calendar" && (() => {
+              const firstDay = new Date(calYear, calMonth, 1).getDay();
+              const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+              const weeks = Math.ceil((firstDay + daysInMonth) / 7);
+              const filteredTasks = statusFilter==="all" ? allTasks : allTasks.filter(t=>t.status===statusFilter);
+
+              const getTasksForDay = (day) => {
+                const dateStr = `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                return filteredTasks.filter(t => {
+                  const s = new Date(t.start), e = new Date(t.end), d = new Date(dateStr);
+                  return d >= s && d <= e;
+                });
+              };
+
+              const WEEKDAYS = ["일","월","화","수","목","금","토"];
+              const monthName = `${calYear}년 ${calMonth+1}월`;
+
+              return (
+                <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", overflow:"hidden" }}>
+                  {/* Calendar header */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px", borderBottom:"1px solid #E2E8F0" }}>
+                    <button onClick={()=>{ let m=calMonth-1,y=calYear; if(m<0){m=11;y--;} setCalMonth(m); setCalYear(y); }}
+                      style={{ background:"none",border:"1px solid #E2E8F0",borderRadius:8,cursor:"pointer",padding:"5px 12px",fontSize:14,color:"#64748B" }}>‹</button>
+                    <span style={{ fontSize:16, fontWeight:700, color:"#0F172A" }}>{monthName}</span>
+                    <button onClick={()=>{ let m=calMonth+1,y=calYear; if(m>11){m=0;y++;} setCalMonth(m); setCalYear(y); }}
+                      style={{ background:"none",border:"1px solid #E2E8F0",borderRadius:8,cursor:"pointer",padding:"5px 12px",fontSize:14,color:"#64748B" }}>›</button>
+                  </div>
+
+                  {/* Weekday headers */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:"1px solid #F1F5F9" }}>
+                    {WEEKDAYS.map((d,i) => (
+                      <div key={d} style={{ padding:"8px 0", textAlign:"center", fontSize:12, fontWeight:700,
+                        color: i===0?"#EF4444":i===6?"#3B82F6":"#64748B" }}>{d}</div>
+                    ))}
+                  </div>
+
+                  {/* Calendar grid */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gridTemplateRows:`repeat(${weeks},minmax(90px,1fr))` }}>
+                    {Array.from({ length: weeks*7 }, (_,i) => {
+                      const dayNum = i - firstDay + 1;
+                      const isValid = dayNum >= 1 && dayNum <= daysInMonth;
+                      const dateStr = isValid ? `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}` : null;
+                      const isToday = isValid && new Date(dateStr).toDateString()===TODAY.toDateString();
+                      const isWknd = i%7===0 || i%7===6;
+                      const dayTasks = isValid ? getTasksForDay(dayNum) : [];
+
+                      return (
+                        <div key={i} style={{
+                          borderRight: i%7!==6?"1px solid #F1F5F9":"none",
+                          borderBottom: i < (weeks-1)*7?"1px solid #F1F5F9":"none",
+                          padding:"6px 6px 4px",
+                          background: !isValid?"#FAFAFA": isToday?"#FFF8F8": isWknd?"#FDFCFF":"white",
+                          minHeight:90
+                        }}>
+                          {isValid && (
+                            <>
+                              <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:4 }}>
+                                <span style={{
+                                  width:24, height:24, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                                  fontSize:12, fontWeight: isToday?700:500,
+                                  background: isToday?"#EF4444":"transparent",
+                                  color: isToday?"white": i%7===0?"#EF4444": i%7===6?"#3B82F6":"#334155"
+                                }}>{dayNum}</span>
+                              </div>
+                              <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                                {dayTasks.slice(0,3).map(task => {
+                                  const proj = projects.find(p => p.tasks.some(t=>t.id===task.id));
+                                  const sc = STATUS[task.status];
+                                  const isStart = task.start === dateStr;
+                                  return (
+                                    <button key={task.id}
+                                      onClick={()=>setMemoTask({taskId:task.id,projectId:proj?.id})}
+                                      style={{
+                                        background: sc.bar, border:"none", borderRadius:3, cursor:"pointer",
+                                        padding:"2px 5px", fontSize:10, color:"white", fontWeight:600,
+                                        textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                                        opacity: isStart ? 1 : 0.75,
+                                        borderLeft: isStart ? `3px solid rgba(0,0,0,0.2)` : "none"
+                                      }}
+                                      title={`${task.name} (${task.assignee})`}>
+                                      {isStart ? task.name : "·· " + task.name}
+                                    </button>
+                                  );
+                                })}
+                                {dayTasks.length > 3 && (
+                                  <div style={{ fontSize:10, color:"#94A3B8", paddingLeft:4 }}>+{dayTasks.length-3}개 더</div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Legend */}
+                  <div style={{ padding:"10px 16px", borderTop:"1px solid #F1F5F9", display:"flex", gap:14, flexWrap:"wrap" }}>
+                    {Object.entries(STATUS).map(([k,v]) => (
+                      <div key={k} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        <div style={{ width:10,height:10,borderRadius:2,background:v.bar }}/>
+                        <span style={{ fontSize:11, color:"#64748B" }}>{v.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {activeView==="list" && (
               <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", overflow:"hidden" }}>
