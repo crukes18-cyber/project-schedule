@@ -7,8 +7,11 @@ const APP_PASSWORD = "woojoo2026";
 // ────────────────────────────────────────────────────────────────────────────
 
 const TODAY = new Date(); TODAY.setHours(0,0,0,0);
-const GANTT_START = new Date("2026-03-12");
-const GANTT_DAYS = 36;
+
+// 간트 범위: 오늘 기준 앞 14일 ~ 뒤 46일 (총 60일, 항상 오늘이 보임)
+const GANTT_DAYS = 60;
+const GANTT_START = new Date(TODAY);
+GANTT_START.setDate(GANTT_START.getDate() - 14);
 
 const getLeft = (dateStr) => {
   const d = new Date(dateStr);
