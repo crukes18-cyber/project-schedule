@@ -6,31 +6,35 @@ import { useState } from "react";
 const APP_PASSWORD = "woojoo2026";
 // ────────────────────────────────────────────────────────────────────────────
 
-const TODAY = new Date(); TODAY.setHours(0,0,0,0);
-
-// 간트 범위: 오늘 기준 앞 14일 ~ 뒤 46일 (총 60일, 항상 오늘이 보임)
+// 날짜 관련 값은 항상 클라이언트에서 실시간으로 계산
 const GANTT_DAYS = 60;
-const GANTT_START = new Date(TODAY);
-GANTT_START.setDate(GANTT_START.getDate() - 14);
 
-const getLeft = (dateStr) => {
+function getDateVars() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const ganttStart = new Date(today);
+  ganttStart.setDate(ganttStart.getDate() - 14);
+  const todayLeft = ((today - ganttStart) / 86400000 / GANTT_DAYS) * 100;
+  const ganttDates = Array.from({ length: GANTT_DAYS }, (_, i) => {
+    const d = new Date(ganttStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  return { today, ganttStart, todayLeft, ganttDates };
+}
+
+const getLeft = (dateStr, ganttStart) => {
   const d = new Date(dateStr);
-  const days = (d - GANTT_START) / 86400000;
+  const days = (d - ganttStart) / 86400000;
   return Math.max(0, Math.min(100, (days / GANTT_DAYS) * 100));
 };
-const getWidth = (startStr, endStr) => {
+const getWidth = (startStr, endStr, ganttStart) => {
   const s = new Date(startStr);
   const e = new Date(endStr);
-  const startDay = Math.max(0, (s - GANTT_START) / 86400000);
-  const endDay = Math.min(GANTT_DAYS, (e - GANTT_START) / 86400000 + 1);
+  const startDay = Math.max(0, (s - ganttStart) / 86400000);
+  const endDay = Math.min(GANTT_DAYS, (e - ganttStart) / 86400000 + 1);
   return Math.max(0, ((endDay - startDay) / GANTT_DAYS) * 100);
 };
-const todayLeft = ((TODAY - GANTT_START) / 86400000 / GANTT_DAYS) * 100;
-const ganttDates = Array.from({ length: GANTT_DAYS }, (_, i) => {
-  const d = new Date(GANTT_START);
-  d.setDate(d.getDate() + i);
-  return d;
-});
 const STATUS = {
   delayed:      { label:"지연",  bar:"#F06B6B", bg:"#FEF2F2", text:"#DC2626", count:"#EF4444" },
   "in-progress":{ label:"진행중", bar:"#34D399", bg:"#ECFDF5", text:"#059669", count:"#10B981" },
@@ -62,7 +66,7 @@ const initialProjects = [
     ],
   },
 ];
-const monthSpans = (() => {
+function getMonthSpans(ganttDates) {
   const spans = []; let cur = null;
   ganttDates.forEach((d, i) => {
     const key = `${d.getFullYear()}-${d.getMonth()}`;
@@ -71,7 +75,7 @@ const monthSpans = (() => {
   });
   if (cur) spans.push(cur);
   return spans;
-})();
+}
 const WEEKDAYS = ["일","월","화","수","목","금","토"];
 
 // ─── Password Gate ────────────────────────────────────────────────────────────
@@ -131,6 +135,7 @@ function TaskIcon({ status }) {
 
 // ─── Calendar View (separate component — no hooks rule violation) ─────────────
 function CalendarView({ allTasks, projects, statusFilter, setMemoTask }) {
+  const { today: TODAY } = getDateVars();
   const [calYear, setCalYear] = useState(TODAY.getFullYear());
   const [calMonth, setCalMonth] = useState(TODAY.getMonth());
 
@@ -223,6 +228,8 @@ export default function ScheduleManager() {
 }
 
 function ScheduleApp() {
+  const { today: TODAY, ganttStart: GANTT_START, todayLeft, ganttDates } = getDateVars();
+  const monthSpans = getMonthSpans(ganttDates);
   const [projects, setProjects] = useState(initialProjects);
   const [activeView, setActiveView] = useState("gantt");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -409,7 +416,7 @@ function ScheduleApp() {
                                 <div style={{ flex:1,position:"relative",height:42 }}>
                                   {ganttDates.map((d,i)=>(d.getDay()===0||d.getDay()===6)?<div key={i} style={{ position:"absolute",top:0,bottom:0,left:`${(i/GANTT_DAYS)*100}%`,width:`${(1/GANTT_DAYS)*100}%`,background:"#F8FAFC" }}/>:null)}
                                   <div style={{ position:"absolute",top:0,bottom:0,left:`${todayLeft}%`,width:2,background:"#EF4444",opacity:.7,zIndex:3 }}/>
-                                  <div style={{ position:"absolute",top:"50%",transform:"translateY(-50%)",left:`${getLeft(task.start)}%`,width:`${getWidth(task.start,task.end)}%`,height:26,background:sc.bar,borderRadius:5,zIndex:4,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}
+                                  <div style={{ position:"absolute",top:"50%",transform:"translateY(-50%)",left:`${getLeft(task.start, GANTT_START)}%`,width:`${getWidth(task.start,task.end, GANTT_START)}%`,height:26,background:sc.bar,borderRadius:5,zIndex:4,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}
                                     onClick={()=>setMemoTask({taskId:task.id,projectId:project.id})} title={`${task.name} (${task.assignee})`}>
                                     <span style={{ fontSize:10,color:"white",fontWeight:700,padding:"0 6px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{task.assignee}</span>
                                   </div>
