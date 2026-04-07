@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // ─── 비밀번호 설정 (변경하려면 아래 값을 수정하세요) ───────────────────────
 const APP_PASSWORD = "woojoo2026";
@@ -231,6 +231,43 @@ function ScheduleApp() {
   const { today: TODAY, ganttStart: GANTT_START, todayLeft, ganttDates } = getDateVars();
   const monthSpans = getMonthSpans(ganttDates);
   const [projects, setProjects] = useState(initialProjects);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle | loading | saving | saved | error
+  const [lastSaved, setLastSaved] = useState(null);
+
+  // 페이지 로드 시 Google Sheets에서 데이터 불러오기
+  useEffect(() => {
+    setSyncStatus("loading");
+    fetch("/api/projects")
+      .then(r => r.json())
+      .then(data => {
+        if (data.projects && data.projects.length > 0) {
+          setProjects(data.projects);
+        }
+        setSyncStatus("idle");
+      })
+      .catch(() => setSyncStatus("error"));
+  }, []);
+
+  const handleSave = async () => {
+    setSyncStatus("saving");
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projects }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSyncStatus("saved");
+        setLastSaved(data.savedAt);
+        setTimeout(() => setSyncStatus("idle"), 3000);
+      } else {
+        setSyncStatus("error");
+      }
+    } catch {
+      setSyncStatus("error");
+    }
+  };
   const [activeView, setActiveView] = useState("gantt");
   const [statusFilter, setStatusFilter] = useState("all");
   const [memoTask, setMemoTask] = useState(null);
@@ -309,8 +346,9 @@ function ScheduleApp() {
             <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
               <span style={{ fontSize:12, color:"#94A3B8" }}>오늘: {TODAY.getFullYear()}년 {TODAY.getMonth()+1}월 {TODAY.getDate()}일 {["일","월","화","수","목","금","토"][TODAY.getDay()]}요일</span>
               <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, color:"#64748B" }}>
-                <span style={{ width:7,height:7,borderRadius:"50%",background:"#22C55E",display:"inline-block" }}/>
-                {syncTime} 동기화 <span style={{ cursor:"pointer",color:"#3B82F6",fontSize:14 }}>↻</span>
+                <span style={{ width:7,height:7,borderRadius:"50%",background: syncStatus==="error"?"#EF4444":"#22C55E",display:"inline-block" }}/>
+                {syncTime} 동기화 <span onClick={handleSave} style={{ cursor:"pointer",color:"#3B82F6",fontSize:14 }}>↻</span>
+                {lastSaved && <span style={{ color:"#94A3B8" }}>· 마지막 저장: {lastSaved}</span>}
               </span>
             </div>
           </div>
@@ -324,6 +362,16 @@ function ScheduleApp() {
             </div>
             <button onClick={()=>setShowAddProject(true)} style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#6366F1",color:"white" }}>+ 프로젝트</button>
             <button onClick={()=>setShowAddTask(true)}    style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#3B82F6",color:"white" }}>+ 테스크</button>
+            <button onClick={handleSave} disabled={syncStatus==="saving"||syncStatus==="loading"}
+              style={{ padding:"7px 16px",borderRadius:8,border:"none",cursor: syncStatus==="saving"?"not-allowed":"pointer",fontSize:13,fontWeight:600,
+                background: syncStatus==="saved"?"#22C55E": syncStatus==="error"?"#EF4444":"#0F172A", color:"white",
+                display:"flex",alignItems:"center",gap:5,opacity:syncStatus==="saving"?0.7:1,transition:"background .3s" }}>
+              {syncStatus==="loading" && <><span style={{fontSize:14}}>⏳</span> 불러오는중</>}
+              {syncStatus==="saving"  && <><span style={{fontSize:14}}>⏳</span> 저장중...</>}
+              {syncStatus==="saved"   && <><span style={{fontSize:14}}>✅</span> 저장됨</>}
+              {syncStatus==="error"   && <><span style={{fontSize:14}}>❌</span> 오류</>}
+              {syncStatus==="idle"    && <><span style={{fontSize:14}}>☁️</span> 저장</>}
+            </button>
           </div>
         </div>
 
