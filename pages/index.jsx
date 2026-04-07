@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 
 // ─── 비밀번호 설정 (변경하려면 아래 값을 수정하세요) ───────────────────────
@@ -77,7 +79,7 @@ function PasswordGate({ onUnlock }) {
 
   const attempt = () => {
     if (pw === APP_PASSWORD) {
-      sessionStorage.setItem("schedule_auth", "1");
+      if (typeof window !== "undefined") sessionStorage.setItem("schedule_auth", "1");
       onUnlock();
     } else {
       setError(true); setShake(true); setPw("");
@@ -210,7 +212,7 @@ function CalendarView({ allTasks, projects, statusFilter, setMemoTask }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function ScheduleManager() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem("schedule_auth")==="1");
+  const [authed, setAuthed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("schedule_auth")==="1");
 
   if (!authed) return <PasswordGate onUnlock={()=>setAuthed(true)} />;
 
