@@ -636,8 +636,7 @@ function ScheduleApp() {
               </div>
               <div style={{ fontSize:13,color:"#64748B",lineHeight:1.6 }}>
                 <span style={{ fontWeight:600,color:"#334155" }}>'{confirmDelete.name}'</span>
-                {confirmDelete.type==="project" ? "을(를) 삭제하면
-포함된 모든 테스크도 함께 삭제돼요." : "을(를) 삭제할까요?"}
+                {confirmDelete.type==="project" ? "을(를) 삭제하면 포함된 모든 테스크도 함께 삭제돼요." : "을(를) 삭제할까요?"}
               </div>
               <div style={{ fontSize:12,color:"#94A3B8",marginTop:8,fontWeight:500 }}>삭제 후 5초 이내에 되돌릴 수 있어요.</div>
             </div>
