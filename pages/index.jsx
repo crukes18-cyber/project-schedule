@@ -495,8 +495,6 @@ function ScheduleApp() {
                                   </button>
                                   <button onClick={()=>setConfirmDelete({type:"task",id:task.id,projectId:project.id,name:task.name})}
                                     style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:12,padding:"1px 3px",borderRadius:3,lineHeight:1,flexShrink:0,marginLeft:"auto" }}>🗑</button>
-                                  <button onClick={()=>setConfirmDelete({type:"task",id:task.id,projectId:project.id,name:task.name})}
-                                    style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:12,padding:"1px 3px",flexShrink:0,lineHeight:1 }}>🗑</button>
                                 </div>
                                 <div style={{ flex:1,position:"relative",height:42 }}>
                                   {ganttDates.map((d,i)=>(d.getDay()===0||d.getDay()===6)?<div key={i} style={{ position:"absolute",top:0,bottom:0,left:`${(i/GANTT_DAYS)*100}%`,width:`${(1/GANTT_DAYS)*100}%`,background:"#F8FAFC" }}/>:null)}
