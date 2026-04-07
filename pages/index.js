@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 
 const TODAY = new Date("2026-04-06");
 const GANTT_START = new Date("2026-03-12");
@@ -26,8 +26,6 @@ const ganttDates = Array.from({ length: GANTT_DAYS }, (_, i) => {
   return d;
 });
 
-const formatFileSize = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`;
-
 const STATUS = {
   delayed:      { label: "지연",  bar: "#F06B6B", bg: "#FEF2F2", text: "#DC2626", count: "#EF4444" },
   "in-progress":{ label: "진행중", bar: "#34D399", bg: "#ECFDF5", text: "#059669", count: "#10B981" },
@@ -39,24 +37,24 @@ const initialProjects = [
   {
     id: 1, name: "DNT-4034 원단 개발", color: "#4A90D9", expanded: true,
     tasks: [
-      { id: 1, name: "포일 프린트 테스트",    assignee: "이지은", start: "2026-03-21", end: "2026-04-06", status: "delayed",      memo: "", files: [] },
-      { id: 2, name: "가먼트 워시 결과 분석", assignee: "박성민", start: "2026-03-29", end: "2026-04-12", status: "in-progress",   memo: "", files: [] },
+      { id: 1, name: "포일 프린트 테스트",    assignee: "이지은", start: "2026-03-21", end: "2026-04-06", status: "delayed",      memo: "" },
+      { id: 2, name: "가먼트 워시 결과 분석", assignee: "박성민", start: "2026-03-29", end: "2026-04-12", status: "in-progress",   memo: "" },
     ],
   },
   {
     id: 2, name: "Spring/Summer 소싱", color: "#10B981", expanded: true,
     tasks: [
-      { id: 3, name: "벤더 미팅 일정 확정",          assignee: "김은석", start: "2026-03-15", end: "2026-03-25", status: "delayed",    memo: "", files: [] },
-      { id: 4, name: "하이게이지 트리코트 샘플 수령", assignee: "이지은", start: "2026-03-26", end: "2026-04-16", status: "in-progress", memo: "", files: [] },
-      { id: 5, name: "FTA 활용 검토",               assignee: "최현아", start: "2026-04-07", end: "2026-04-16", status: "todo",       memo: "", files: [] },
-      { id: 6, name: "development",                 assignee: "박성민", start: "2026-03-27", end: "2026-04-07", status: "in-progress", memo: "", files: [] },
+      { id: 3, name: "벤더 미팅 일정 확정",          assignee: "김은석", start: "2026-03-15", end: "2026-03-25", status: "delayed",    memo: "" },
+      { id: 4, name: "하이게이지 트리코트 샘플 수령", assignee: "이지은", start: "2026-03-26", end: "2026-04-16", status: "in-progress", memo: "" },
+      { id: 5, name: "FTA 활용 검토",               assignee: "최현아", start: "2026-04-07", end: "2026-04-16", status: "todo",       memo: "" },
+      { id: 6, name: "development",                 assignee: "박성민", start: "2026-03-27", end: "2026-04-07", status: "in-progress", memo: "" },
     ],
   },
   {
     id: 3, name: "액티브웨어 신규 라인", color: "#EF4444", expanded: true,
     tasks: [
-      { id: 7, name: "GSM 스펙 정의", assignee: "박성민", start: "2026-03-21", end: "2026-04-01", status: "delayed", memo: "", files: [] },
-      { id: 8, name: "S&R 테스트",    assignee: "최현아", start: "2026-04-03", end: "2026-04-14", status: "done",    memo: "", files: [] },
+      { id: 7, name: "GSM 스펙 정의", assignee: "박성민", start: "2026-03-21", end: "2026-04-01", status: "delayed", memo: "" },
+      { id: 8, name: "S&R 테스트",    assignee: "최현아", start: "2026-04-03", end: "2026-04-14", status: "done",    memo: "" },
     ],
   },
 ];
@@ -88,30 +86,6 @@ function TaskIcon({ status }) {
   );
 }
 
-function FileChip({ file, onRemove }) {
-  const isImg = file.type?.startsWith("image/");
-  const isPdf = file.type === "application/pdf";
-  const ext = file.name.split(".").pop()?.toUpperCase() || "FILE";
-  const color = isImg ? "#8B5CF6" : isPdf ? "#EF4444" : "#3B82F6";
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:"#F8FAFC", borderRadius:8, border:"1px solid #E2E8F0" }}>
-      <div style={{ width:32,height:36,background:color,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
-        <span style={{ color:"white", fontSize:9, fontWeight:700 }}>{ext.slice(0,4)}</span>
-      </div>
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:12, fontWeight:500, color:"#334155", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{file.name}</div>
-        <div style={{ fontSize:11, color:"#94A3B8", marginTop:1 }}>{formatFileSize(file.size)}</div>
-      </div>
-      {isImg && (
-        <a href={file.dataUrl} target="_blank" rel="noopener noreferrer" style={{ color:"#64748B", fontSize:15, textDecoration:"none", flexShrink:0 }}>👁</a>
-      )}
-      <a href={file.dataUrl} download={file.name} style={{ color:"#64748B", fontSize:15, textDecoration:"none", flexShrink:0 }}>⬇</a>
-      <button onClick={onRemove} style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:16,padding:0,flexShrink:0,lineHeight:1 }}>✕</button>
-    </div>
-  );
-}
-
-// Month spans for gantt header
 const monthSpans = (() => {
   const spans = [];
   let cur = null;
@@ -132,14 +106,12 @@ export default function ScheduleManager() {
   const [projects, setProjects] = useState(initialProjects);
   const [activeView, setActiveView] = useState("gantt");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [memoTask, setMemoTask]  = useState(null); // {taskId, projectId}
+  const [memoTask, setMemoTask] = useState(null);
   const [showAddProject, setShowAddProject] = useState(false);
-  const [showAddTask, setShowAddTask]       = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
   const [newProject, setNewProject] = useState({ name:"", color:"#4A90D9" });
-  const [newTask, setNewTask]       = useState({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" });
-  const [dragOver, setDragOver]     = useState(false);
-  const fileInputRef = useRef(null);
-  const [syncTime]   = useState(() => {
+  const [newTask, setNewTask] = useState({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" });
+  const [syncTime] = useState(() => {
     const n = new Date(); const h = n.getHours(); const ap = h>=12?"오후":"오전";
     return `${ap} ${h%12||12}:${String(n.getMinutes()).padStart(2,"0")}:${String(n.getSeconds()).padStart(2,"0")}`;
   });
@@ -176,27 +148,6 @@ export default function ScheduleManager() {
       : p));
   };
 
-  const handleFiles = (fileList) => {
-    if (!memoTask) return;
-    Array.from(fileList).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const fd = { id: Date.now()+Math.random(), name:file.name, size:file.size, type:file.type, dataUrl:e.target.result };
-        setProjects(ps => ps.map(p => p.id===memoTask.projectId
-          ? {...p, tasks: p.tasks.map(t => t.id===memoTask.taskId ? {...t, files:[...t.files,fd]} : t)}
-          : p));
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeFile = (fileId) => {
-    if (!memoTask) return;
-    setProjects(ps => ps.map(p => p.id===memoTask.projectId
-      ? {...p, tasks: p.tasks.map(t => t.id===memoTask.taskId ? {...t, files:t.files.filter(f=>f.id!==fileId)} : t)}
-      : p));
-  };
-
   const addProject = () => {
     if (!newProject.name.trim()) return;
     setProjects(ps => [...ps, { id:Date.now(), name:newProject.name, color:newProject.color, expanded:true, tasks:[] }]);
@@ -206,7 +157,7 @@ export default function ScheduleManager() {
   const addTask = () => {
     if (!newTask.name.trim()||!newTask.start||!newTask.end) return;
     setProjects(ps => ps.map(p => p.id===Number(newTask.projectId)
-      ? {...p, tasks:[...p.tasks,{id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:"",files:[]}]}
+      ? {...p, tasks:[...p.tasks,{id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:""}]}
       : p));
     setNewTask({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" }); setShowAddTask(false);
   };
@@ -231,7 +182,6 @@ export default function ScheduleManager() {
     <div style={{ minHeight:"100vh", background:"#F1F5F9", fontFamily:"'Pretendard','Noto Sans KR','Apple SD Gothic Neo',sans-serif" }}>
       <div style={{ maxWidth:1440, margin:"0 auto", padding:"24px 24px" }}>
 
-        {/* ── Header ── */}
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:20 }}>
           <div>
             <h1 style={{ fontSize:22, fontWeight:700, color:"#0F172A", margin:0 }}>프로젝트 스케줄</h1>
@@ -258,32 +208,26 @@ export default function ScheduleManager() {
                 </button>
               ))}
             </div>
-            <button onClick={()=>setShowAddProject(true)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:600, background:"#EFF6FF", color:"#3B82F6" }}>
+            <button onClick={()=>setShowAddProject(true)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:600, background:"#6366F1", color:"white" }}>
               + 프로젝트
             </button>
             <button onClick={()=>setShowAddTask(true)} style={{ padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontSize:13, fontWeight:600, background:"#3B82F6", color:"white" }}>
-              + 태스크
+              + 테스크
             </button>
           </div>
         </div>
 
-        {/* ── Status filter cards ── */}
         <div style={{ display:"flex", gap:10, marginBottom:20 }}>
-          {/* 전체 */}
           {[
-            { key:"all", label:"전체",  countColor:"#0F172A", count: stats.all },
+            { key:"all",         label:"전체",  countColor:"#0F172A",                   count: stats.all },
             { key:"in-progress", label:"진행중", countColor: STATUS["in-progress"].count, count: stats["in-progress"] },
-            { key:"done",    label:"완료",  countColor: STATUS.done.count,    count: stats.done    },
-            { key:"delayed", label:"지연",  countColor: STATUS.delayed.count, count: stats.delayed },
-            { key:"todo",    label:"할 일", countColor: STATUS.todo.count,    count: stats.todo    },
+            { key:"done",        label:"완료",   countColor: STATUS.done.count,           count: stats.done    },
+            { key:"delayed",     label:"지연",   countColor: STATUS.delayed.count,        count: stats.delayed },
+            { key:"todo",        label:"할 일",  countColor: STATUS.todo.count,           count: stats.todo    },
           ].map(({ key, label, countColor, count }) => {
             const isActive = statusFilter === key;
-            const borderColor = isActive
-              ? (key==="all" ? "#3B82F6" : STATUS[key]?.bar || "#3B82F6")
-              : "#E2E8F0";
-            const bg = isActive
-              ? (key==="all" ? "#EFF6FF" : STATUS[key]?.bg || "#EFF6FF")
-              : "white";
+            const borderColor = isActive ? (key==="all" ? "#3B82F6" : STATUS[key]?.bar || "#3B82F6") : "#E2E8F0";
+            const bg = isActive ? (key==="all" ? "#EFF6FF" : STATUS[key]?.bg || "#EFF6FF") : "white";
             return (
               <button key={key}
                 onClick={() => setStatusFilter(isActive && key!=="all" ? "all" : key)}
@@ -303,18 +247,18 @@ export default function ScheduleManager() {
           })}
         </div>
 
-        {/* ── Main content ── */}
         <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
           <div style={{ flex:1, minWidth:0 }}>
 
-            {/* ── GANTT VIEW ── */}
             {activeView==="gantt" && (
               <div>
                 {statusFilter!=="all" && (
-                  <div style={{ padding:"8px 14px", background: STATUS[statusFilter]?.bg, borderRadius:8, border:`1px solid ${STATUS[statusFilter]?.bar}44`,
-                    fontSize:12, color: STATUS[statusFilter]?.text, fontWeight:600, marginBottom:12, display:"flex", alignItems:"center", gap:6 }}>
+                  <div style={{ padding:"8px 14px", background: STATUS[statusFilter]?.bg, borderRadius:8,
+                    border:`1px solid ${STATUS[statusFilter]?.bar}44`,
+                    fontSize:12, color: STATUS[statusFilter]?.text, fontWeight:600, marginBottom:12,
+                    display:"flex", alignItems:"center", gap:6 }}>
                     <span>🔍</span>
-                    <span>'{STATUS[statusFilter]?.label}' 상태 태스크만 표시 중 ({displayProjects.flatMap(p=>p.tasks).length}건)</span>
+                    <span>'{STATUS[statusFilter]?.label}' 상태 테스크만 표시 중 ({displayProjects.flatMap(p=>p.tasks).length}건)</span>
                     <button onClick={()=>setStatusFilter("all")} style={{ marginLeft:"auto", background:"none", border:"none", cursor:"pointer", fontSize:12, color:STATUS[statusFilter]?.text, fontWeight:700 }}>전체 보기 ✕</button>
                   </div>
                 )}
@@ -322,15 +266,13 @@ export default function ScheduleManager() {
                 {displayProjects.length===0 && (
                   <div style={{ padding:48, textAlign:"center", color:"#94A3B8", background:"white", borderRadius:12, border:"1px solid #E2E8F0" }}>
                     <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
-                    <div style={{ fontWeight:600, marginBottom:4 }}>해당 상태의 태스크가 없습니다</div>
+                    <div style={{ fontWeight:600, marginBottom:4 }}>해당 상태의 테스크가 없습니다</div>
                     <div style={{ fontSize:12 }}>다른 필터를 선택해 보세요</div>
                   </div>
                 )}
 
                 {displayProjects.map(project => (
                   <div key={project.id} style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", marginBottom:12, overflow:"hidden" }}>
-
-                    {/* Project header */}
                     <div style={{ display:"flex", alignItems:"center", padding:"12px 16px",
                       borderBottom: project.expanded ? "1px solid #F1F5F9" : "none", background:"#FAFAFA" }}>
                       <button onClick={()=>toggleProject(project.id)}
@@ -347,7 +289,6 @@ export default function ScheduleManager() {
                     {project.expanded && (
                       <div style={{ overflowX:"auto" }}>
                         <div style={{ minWidth:700 }}>
-                          {/* Month header */}
                           <div style={{ display:"flex", borderBottom:"1px solid #F1F5F9" }}>
                             <div style={{ width:220, flexShrink:0 }}/>
                             <div style={{ flex:1, display:"flex" }}>
@@ -360,7 +301,6 @@ export default function ScheduleManager() {
                             </div>
                           </div>
 
-                          {/* Day header */}
                           <div style={{ display:"flex", borderBottom:"1px solid #F1F5F9" }}>
                             <div style={{ width:220, flexShrink:0, borderRight:"1px solid #F1F5F9" }}/>
                             <div style={{ flex:1, display:"flex" }}>
@@ -379,43 +319,33 @@ export default function ScheduleManager() {
                             </div>
                           </div>
 
-                          {/* Task rows */}
                           {project.tasks.map(task => {
                             const sc = STATUS[task.status];
                             const hasMemo = !!task.memo;
-                            const hasFiles = task.files.length > 0;
                             return (
                               <div key={task.id} style={{ display:"flex", alignItems:"center", borderBottom:"1px solid #F8FAFC", minHeight:42 }}>
                                 <div style={{ width:220, flexShrink:0, padding:"0 12px", display:"flex", alignItems:"center", gap:7, borderRight:"1px solid #F1F5F9" }}>
                                   <TaskIcon status={task.status}/>
                                   <button onClick={()=>setMemoTask({taskId:task.id,projectId:project.id})}
                                     style={{ background:"none",border:"none",cursor:"pointer",padding:0,textAlign:"left",
-                                      fontSize:12,color:"#334155",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:155,
+                                      fontSize:12,color:"#334155",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160,
                                       display:"flex",alignItems:"center",gap:3 }}>
                                     <span style={{ overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{task.name}</span>
                                     {hasMemo && <span style={{ fontSize:10, flexShrink:0 }}>📝</span>}
-                                    {hasFiles && <span style={{ fontSize:10, flexShrink:0 }}>📎</span>}
                                   </button>
                                 </div>
-
                                 <div style={{ flex:1, position:"relative", height:42 }}>
-                                  {/* Weekend shading */}
                                   {ganttDates.map((d,i) => (d.getDay()===0||d.getDay()===6) ? (
                                     <div key={i} style={{ position:"absolute",top:0,bottom:0,
                                       left:`${(i/GANTT_DAYS)*100}%`, width:`${(1/GANTT_DAYS)*100}%`, background:"#F8FAFC" }}/>
                                   ) : null)}
-
-                                  {/* Today line */}
                                   <div style={{ position:"absolute",top:0,bottom:0,left:`${todayLeft}%`,
                                     width:2, background:"#EF4444", opacity:.7, zIndex:3 }}/>
-
-                                  {/* Task bar */}
                                   <div style={{
                                     position:"absolute", top:"50%", transform:"translateY(-50%)",
                                     left:`${getLeft(task.start)}%`, width:`${getWidth(task.start,task.end)}%`,
                                     height:26, background: sc.bar, borderRadius:5, zIndex:4,
-                                    display:"flex", alignItems:"center", justifyContent:"center",
-                                    cursor:"pointer", transition:"filter .1s"
+                                    display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer"
                                   }}
                                     onClick={()=>setMemoTask({taskId:task.id,projectId:project.id})}
                                     title={`${task.name} (${task.assignee})`}>
@@ -435,7 +365,6 @@ export default function ScheduleManager() {
               </div>
             )}
 
-            {/* ── CALENDAR VIEW (stub) ── */}
             {activeView==="calendar" && (
               <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", padding:40, textAlign:"center" }}>
                 <div style={{ fontSize:48, marginBottom:12 }}>📅</div>
@@ -444,13 +373,12 @@ export default function ScheduleManager() {
               </div>
             )}
 
-            {/* ── LIST VIEW ── */}
             {activeView==="list" && (
               <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", overflow:"hidden" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                   <thead>
                     <tr style={{ background:"#F8FAFC", borderBottom:"1px solid #E2E8F0" }}>
-                      {["태스크","프로젝트","담당자","시작일","종료일","상태","메모"].map(h=>(
+                      {["테스크","프로젝트","담당자","시작일","종료일","상태","메모"].map(h=>(
                         <th key={h} style={{ padding:"10px 14px", textAlign:"left", color:"#64748B", fontWeight:600, whiteSpace:"nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -486,7 +414,7 @@ export default function ScheduleManager() {
                           <td style={{ padding:"11px 14px" }}>
                             <button onClick={()=>setMemoTask({taskId:task.id,projectId:proj?.id})}
                               style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#3B82F6",padding:0 }}>
-                              {task.memo||task.files.length>0 ? "📝 보기" : "메모 추가"}
+                              {task.memo ? "📝 보기" : "메모 추가"}
                             </button>
                           </td>
                         </tr>
@@ -498,7 +426,6 @@ export default function ScheduleManager() {
             )}
           </div>
 
-          {/* ── Deadline sidebar ── */}
           {upcomingDeadlines.length>0 && !memoTask && (
             <div style={{ width:210, flexShrink:0 }}>
               <div style={{ background:"white", borderRadius:12, border:"1px solid #E2E8F0", padding:16 }}>
@@ -519,14 +446,11 @@ export default function ScheduleManager() {
         </div>
       </div>
 
-      {/* ──────────────────────────────── MEMO PANEL ──────────────────────────────── */}
       {memoTask && memoData && (
         <>
           <div onClick={()=>setMemoTask(null)} style={{ position:"fixed",inset:0,background:"rgba(15,23,42,0.25)",zIndex:40 }}/>
           <div style={{ position:"fixed",top:0,right:0,bottom:0,width:420,background:"white",zIndex:50,
             display:"flex",flexDirection:"column",boxShadow:"-6px 0 32px rgba(0,0,0,0.12)" }}>
-
-            {/* Panel header */}
             <div style={{ padding:"20px 20px 16px", borderBottom:"1px solid #E2E8F0", flexShrink:0 }}>
               <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12 }}>
                 <div style={{ flex:1,minWidth:0 }}>
@@ -551,62 +475,29 @@ export default function ScheduleManager() {
                 </span>
               </div>
             </div>
-
-            {/* Scrollable body */}
-            <div style={{ flex:1,overflowY:"auto",display:"flex",flexDirection:"column" }}>
-              {/* Memo text */}
-              <div style={{ padding:"18px 20px",borderBottom:"1px solid #F1F5F9" }}>
-                <div style={{ fontSize:13,fontWeight:700,color:"#334155",marginBottom:8,display:"flex",alignItems:"center",gap:5 }}>
-                  📝 메모
-                </div>
-                <textarea
-                  value={memoData.task.memo}
-                  onChange={e=>updateMemo(e.target.value)}
-                  placeholder={"태스크에 대한 메모를 입력하세요.\n\n진행 상황, 참고 사항, 이슈, 커뮤니케이션 내용 등을 자유롭게 기록할 수 있습니다."}
-                  style={{ width:"100%",boxSizing:"border-box",minHeight:180,border:"1px solid #E2E8F0",
-                    borderRadius:8,padding:"12px",fontSize:13,color:"#334155",resize:"vertical",
-                    fontFamily:"inherit",lineHeight:1.7,outline:"none",background:"#FAFAFA" }}
-                  onFocus={e=>e.target.style.background="white"}
-                  onBlur={e=>e.target.style.background="#FAFAFA"}
-                />
-                <div style={{ fontSize:11,color:"#CBD5E1",marginTop:4,textAlign:"right" }}>{memoData.task.memo.length}자</div>
+            <div style={{ flex:1,overflowY:"auto",padding:"18px 20px" }}>
+              <div style={{ fontSize:13,fontWeight:700,color:"#334155",marginBottom:8,display:"flex",alignItems:"center",gap:5 }}>
+                📝 메모
               </div>
-
-              {/* File attachments */}
-              <div style={{ padding:"18px 20px",flex:1 }}>
-                <div style={{ fontSize:13,fontWeight:700,color:"#334155",marginBottom:12,display:"flex",alignItems:"center",gap:5 }}>
-                  📎 첨부파일
-                  <span style={{ fontSize:11,color:"#94A3B8",fontWeight:400 }}>({memoData.task.files.length}개)</span>
-                </div>
-
-                {/* Drop zone */}
-                <div
-                  onDragOver={e=>{e.preventDefault();setDragOver(true);}}
-                  onDragLeave={()=>setDragOver(false)}
-                  onDrop={e=>{e.preventDefault();setDragOver(false);handleFiles(e.dataTransfer.files);}}
-                  onClick={()=>fileInputRef.current?.click()}
-                  style={{ border:`2px dashed ${dragOver?"#3B82F6":"#CBD5E1"}`,borderRadius:10,
-                    padding:"22px 16px",textAlign:"center",cursor:"pointer",
-                    background:dragOver?"#EFF6FF":"#F8FAFC",transition:"all .15s",marginBottom:14 }}>
-                  <div style={{ fontSize:28,marginBottom:6 }}>📁</div>
-                  <div style={{ fontSize:12,color:"#64748B",fontWeight:600 }}>파일을 드래그하거나 클릭하여 업로드</div>
-                  <div style={{ fontSize:11,color:"#94A3B8",marginTop:3 }}>이미지, PDF, 문서 등 모든 형식 지원</div>
-                </div>
-                <input ref={fileInputRef} type="file" multiple style={{ display:"none" }} onChange={e=>handleFiles(e.target.files)}/>
-
-                {/* File list */}
-                <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-                  {memoData.task.files.map(file=>(
-                    <FileChip key={file.id} file={file} onRemove={()=>removeFile(file.id)}/>
-                  ))}
-                </div>
+              <textarea
+                value={memoData.task.memo}
+                onChange={e=>updateMemo(e.target.value)}
+                placeholder={"테스크에 대한 메모를 입력하세요.\n\n진행 상황, 참고 사항, 이슈, 커뮤니케이션 내용 등을 자유롭게 기록할 수 있습니다."}
+                style={{ width:"100%",boxSizing:"border-box",minHeight:300,border:"1px solid #E2E8F0",
+                  borderRadius:8,padding:"12px",fontSize:13,color:"#334155",resize:"vertical",
+                  fontFamily:"inherit",lineHeight:1.7,outline:"none",background:"#FAFAFA" }}
+                onFocus={e=>e.target.style.background="white"}
+                onBlur={e=>e.target.style.background="#FAFAFA"}
+              />
+              <div style={{ fontSize:11,color:"#CBD5E1",marginTop:4,textAlign:"right" }}>{memoData.task.memo.length}자</div>
+              <div style={{ marginTop:16,padding:"10px 14px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:12,color:"#92400E" }}>
+                💡 메모 내용은 Google Sheets 연동 시 해당 셀에 텍스트로 저장됩니다.
               </div>
             </div>
           </div>
         </>
       )}
 
-      {/* ──────────────────────────────── MODALS ──────────────────────────────── */}
       {(showAddProject||showAddTask) && (
         <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center" }}>
           <div style={{ background:"white",borderRadius:16,padding:24,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
@@ -628,16 +519,15 @@ export default function ScheduleManager() {
                 </div>
                 <div style={{ display:"flex",gap:8,justifyContent:"flex-end" }}>
                   <button onClick={()=>setShowAddProject(false)} style={{ padding:"8px 16px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#64748B" }}>취소</button>
-                  <button onClick={addProject} style={{ padding:"8px 16px",borderRadius:8,border:"none",background:"#3B82F6",color:"white",cursor:"pointer",fontSize:13,fontWeight:700 }}>추가</button>
+                  <button onClick={addProject} style={{ padding:"8px 16px",borderRadius:8,border:"none",background:"#6366F1",color:"white",cursor:"pointer",fontSize:13,fontWeight:700 }}>추가</button>
                 </div>
               </>
             )}
-
             {showAddTask && (
               <>
-                <h3 style={{ margin:"0 0 18px",fontSize:15,fontWeight:700,color:"#0F172A" }}>새 태스크 추가</h3>
+                <h3 style={{ margin:"0 0 18px",fontSize:15,fontWeight:700,color:"#0F172A" }}>새 테스크 추가</h3>
                 {[
-                  {label:"태스크명",key:"name",type:"text",placeholder:"태스크 이름 입력"},
+                  {label:"테스크명",key:"name",type:"text",placeholder:"테스크 이름 입력"},
                   {label:"담당자",key:"assignee",type:"text",placeholder:"담당자 이름"},
                   {label:"시작일",key:"start",type:"date"},
                   {label:"종료일",key:"end",type:"date"},
