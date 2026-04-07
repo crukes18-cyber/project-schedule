@@ -259,7 +259,8 @@ function ScheduleApp() {
       const data = await res.json();
       if (data.ok) {
         setSyncStatus("saved");
-        setLastSaved(data.savedAt);
+        const now = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+        setLastSaved(now);
         setTimeout(() => setSyncStatus("idle"), 3000);
       } else {
         setSyncStatus("error");
