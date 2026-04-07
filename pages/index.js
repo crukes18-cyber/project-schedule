@@ -1,5 +1,109 @@
 import { useState } from "react";
 
+
+// ─── 비밀번호 설정 (변경하려면 아래 값을 수정하세요) ───────────────────────
+const APP_PASSWORD = "woojoo2026";
+// ────────────────────────────────────────────────────────────────────────────
+
+function PasswordGate({ onUnlock }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const attempt = () => {
+    if (pw === APP_PASSWORD) {
+      sessionStorage.setItem("schedule_auth", "1");
+      onUnlock();
+    } else {
+      setError(true);
+      setShake(true);
+      setPw("");
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#F1F5F9",
+      display:"flex", alignItems:"center", justifyContent:"center",
+      fontFamily:"'Pretendard','Noto Sans KR','Apple SD Gothic Neo',sans-serif"
+    }}>
+      <div style={{
+        background:"white", borderRadius:16, padding:"40px 36px",
+        boxShadow:"0 8px 40px rgba(0,0,0,0.10)", width:340,
+        animation: shake ? "shake 0.4s ease" : "none"
+      }}>
+        <style>{`
+          @keyframes shake {
+            0%,100%{transform:translateX(0)}
+            20%{transform:translateX(-8px)}
+            40%{transform:translateX(8px)}
+            60%{transform:translateX(-6px)}
+            80%{transform:translateX(6px)}
+          }
+        `}</style>
+
+        {/* Logo / Title */}
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ width:52, height:52, borderRadius:14, background:"#3B82F6",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            margin:"0 auto 14px", boxShadow:"0 4px 14px rgba(59,130,246,0.35)" }}>
+            <span style={{ fontSize:24 }}>📋</span>
+          </div>
+          <div style={{ fontSize:18, fontWeight:700, color:"#0F172A" }}>프로젝트 스케줄</div>
+          <div style={{ fontSize:12, color:"#94A3B8", marginTop:4 }}>우주글로벌 내부 전용</div>
+        </div>
+
+        {/* Password input */}
+        <div style={{ marginBottom:6 }}>
+          <label style={{ fontSize:12, fontWeight:600, color:"#64748B", display:"block", marginBottom:6 }}>
+            비밀번호
+          </label>
+          <input
+            type="password"
+            value={pw}
+            onChange={e=>{ setPw(e.target.value); setError(false); }}
+            onKeyDown={e=>e.key==="Enter" && attempt()}
+            placeholder="비밀번호를 입력하세요"
+            autoFocus
+            style={{
+              width:"100%", boxSizing:"border-box",
+              padding:"11px 14px", border: error ? "1.5px solid #EF4444" : "1.5px solid #E2E8F0",
+              borderRadius:10, fontSize:14, outline:"none", fontFamily:"inherit",
+              transition:"border-color .15s",
+              background: error ? "#FFF8F8" : "white"
+            }}
+          />
+          {error && (
+            <div style={{ fontSize:12, color:"#EF4444", marginTop:5, display:"flex", alignItems:"center", gap:4 }}>
+              <span>⚠</span> 비밀번호가 올바르지 않습니다
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={attempt}
+          style={{
+            width:"100%", padding:"12px", marginTop:16,
+            background:"#3B82F6", color:"white", border:"none",
+            borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer",
+            boxShadow:"0 2px 8px rgba(59,130,246,0.3)", transition:"opacity .15s"
+          }}
+          onMouseEnter={e=>e.target.style.opacity=".88"}
+          onMouseLeave={e=>e.target.style.opacity="1"}
+        >
+          입장하기
+        </button>
+
+        <div style={{ marginTop:16, padding:"10px 12px", background:"#F8FAFC",
+          borderRadius:8, fontSize:11, color:"#94A3B8", textAlign:"center", lineHeight:1.6 }}>
+          이 페이지는 우주글로벌 내부 인원만<br/>접근할 수 있습니다
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const TODAY = new Date("2026-04-06");
 const GANTT_START = new Date("2026-03-12");
 const GANTT_DAYS = 36;
@@ -103,6 +207,10 @@ const monthSpans = (() => {
 })();
 
 export default function ScheduleManager() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("schedule_auth") === "1");
+
+  if (!authed) return <PasswordGate onUnlock={()=>setAuthed(true)} />;
+
   const [projects, setProjects] = useState(initialProjects);
   const [activeView, setActiveView] = useState("gantt");
   const [statusFilter, setStatusFilter] = useState("all");
