@@ -2,7 +2,7 @@ import { useState } from "react";
 
 
 // ─── 비밀번호 설정 (변경하려면 아래 값을 수정하세요) ───────────────────────
-const APP_PASSWORD = "woojooglobal";
+const APP_PASSWORD = "woojoo2026";
 // ────────────────────────────────────────────────────────────────────────────
 
 function PasswordGate({ onUnlock }) {
