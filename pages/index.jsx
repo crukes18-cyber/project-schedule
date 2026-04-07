@@ -6,7 +6,7 @@ import { useState } from "react";
 const APP_PASSWORD = "woojoo2026";
 // ────────────────────────────────────────────────────────────────────────────
 
-const TODAY = new Date("2026-04-06");
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
 const GANTT_START = new Date("2026-03-12");
 const GANTT_DAYS = 36;
 
@@ -297,7 +297,7 @@ function ScheduleApp() {
           <div>
             <h1 style={{ fontSize:22, fontWeight:700, color:"#0F172A", margin:0 }}>프로젝트 스케줄</h1>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
-              <span style={{ fontSize:12, color:"#94A3B8" }}>오늘: 2026년 4월 6일 월</span>
+              <span style={{ fontSize:12, color:"#94A3B8" }}>오늘: {TODAY.getFullYear()}년 {TODAY.getMonth()+1}월 {TODAY.getDate()}일 {["일","월","화","수","목","금","토"][TODAY.getDay()]}요일</span>
               <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, color:"#64748B" }}>
                 <span style={{ width:7,height:7,borderRadius:"50%",background:"#22C55E",display:"inline-block" }}/>
                 {syncTime} 동기화 <span style={{ cursor:"pointer",color:"#3B82F6",fontSize:14 }}>↻</span>
