@@ -276,6 +276,9 @@ function ScheduleApp() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newProject, setNewProject] = useState({ name:"", color:"#4A90D9" });
   const [newTask, setNewTask] = useState({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" });
+  const [confirmDelete, setConfirmDelete] = useState(null); // { type: "project"|"task", id, projectId?, name }
+  const [undoStack, setUndoStack] = useState([]); // 되돌리기 스택
+  const [undoNotice, setUndoNotice] = useState(null); // { message, timeoutId }
   const [syncTime] = useState(() => {
     const n=new Date(); const h=n.getHours(); const ap=h>=12?"오후":"오전";
     return `${ap} ${h%12||12}:${String(n.getMinutes()).padStart(2,"0")}:${String(n.getSeconds()).padStart(2,"0")}`;
@@ -322,8 +325,37 @@ function ScheduleApp() {
   };
 
   const deleteProject = (id) => {
+    const snapshot = projects;
+    const proj = projects.find(p=>p.id===id);
     setProjects(ps=>ps.filter(p=>p.id!==id));
     if (memoTask?.projectId===id) setMemoTask(null);
+    setConfirmDelete(null);
+    // 되돌리기 스택에 저장
+    const tid = setTimeout(() => setUndoNotice(null), 5000);
+    setUndoStack(s=>[...s, { snapshot, label: `프로젝트 "${proj?.name}" 삭제` }]);
+    setUndoNotice({ message: `프로젝트 "${proj?.name}"이 삭제됐어요.`, timeoutId: tid });
+  };
+
+  const deleteTask = (taskId, projectId) => {
+    const snapshot = projects;
+    const proj = projects.find(p=>p.id===projectId);
+    const task = proj?.tasks.find(t=>t.id===taskId);
+    setProjects(ps=>ps.map(p=>p.id===projectId?{...p,tasks:p.tasks.filter(t=>t.id!==taskId)}:p));
+    if (memoTask?.taskId===taskId) setMemoTask(null);
+    setConfirmDelete(null);
+    // 되돌리기 스택에 저장
+    const tid = setTimeout(() => setUndoNotice(null), 5000);
+    setUndoStack(s=>[...s, { snapshot, label: `테스크 "${task?.name}" 삭제` }]);
+    setUndoNotice({ message: `테스크 "${task?.name}"이 삭제됐어요.`, timeoutId: tid });
+  };
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const last = undoStack[undoStack.length - 1];
+    setProjects(last.snapshot);
+    setUndoStack(s=>s.slice(0,-1));
+    if (undoNotice?.timeoutId) clearTimeout(undoNotice.timeoutId);
+    setUndoNotice(null);
   };
 
   const upcomingDeadlines = allTasks
@@ -427,7 +459,7 @@ function ScheduleApp() {
                       <div style={{ width:9,height:9,borderRadius:"50%",background:project.color,marginRight:8,flexShrink:0 }}/>
                       <span style={{ fontWeight:700,fontSize:14,color:"#0F172A" }}>{project.name}</span>
                       <span style={{ marginLeft:"auto",fontSize:11,color:"#94A3B8",marginRight:10 }}>{project.tasks.length}개</span>
-                      <button onClick={()=>deleteProject(project.id)} style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:14,padding:"2px 4px",borderRadius:4,lineHeight:1 }}>🗑</button>
+                      <button onClick={()=>setConfirmDelete({type:"project",id:project.id,name:project.name})} style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:14,padding:"2px 4px",borderRadius:4,lineHeight:1 }}>🗑</button>
                     </div>
                     {project.expanded && (
                       <div style={{ overflowX:"auto" }}>
@@ -457,10 +489,14 @@ function ScheduleApp() {
                                 <div style={{ width:220,flexShrink:0,padding:"0 12px",display:"flex",alignItems:"center",gap:7,borderRight:"1px solid #F1F5F9" }}>
                                   <TaskIcon status={task.status}/>
                                   <button onClick={()=>setMemoTask({taskId:task.id,projectId:project.id})}
-                                    style={{ background:"none",border:"none",cursor:"pointer",padding:0,textAlign:"left",fontSize:12,color:"#334155",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160,display:"flex",alignItems:"center",gap:3 }}>
+                                    style={{ background:"none",border:"none",cursor:"pointer",padding:0,textAlign:"left",fontSize:12,color:"#334155",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130,display:"flex",alignItems:"center",gap:3 }}>
                                     <span style={{ overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{task.name}</span>
                                     {task.memo && <span style={{ fontSize:10,flexShrink:0 }}>📝</span>}
                                   </button>
+                                  <button onClick={()=>setConfirmDelete({type:"task",id:task.id,projectId:project.id,name:task.name})}
+                                    style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:12,padding:"1px 3px",borderRadius:3,lineHeight:1,flexShrink:0,marginLeft:"auto" }}>🗑</button>
+                                  <button onClick={()=>setConfirmDelete({type:"task",id:task.id,projectId:project.id,name:task.name})}
+                                    style={{ background:"none",border:"none",cursor:"pointer",color:"#CBD5E1",fontSize:12,padding:"1px 3px",flexShrink:0,lineHeight:1 }}>🗑</button>
                                 </div>
                                 <div style={{ flex:1,position:"relative",height:42 }}>
                                   {ganttDates.map((d,i)=>(d.getDay()===0||d.getDay()===6)?<div key={i} style={{ position:"absolute",top:0,bottom:0,left:`${(i/GANTT_DAYS)*100}%`,width:`${(1/GANTT_DAYS)*100}%`,background:"#F8FAFC" }}/>:null)}
@@ -492,7 +528,7 @@ function ScheduleApp() {
                 <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
                   <thead>
                     <tr style={{ background:"#F8FAFC",borderBottom:"1px solid #E2E8F0" }}>
-                      {["테스크","프로젝트","담당자","시작일","종료일","상태","메모"].map(h=>(
+                      {["테스크","프로젝트","담당자","시작일","종료일","상태","메모","삭제"].map(h=>(
                         <th key={h} style={{ padding:"10px 14px",textAlign:"left",color:"#64748B",fontWeight:600,whiteSpace:"nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -517,6 +553,10 @@ function ScheduleApp() {
                             <button onClick={()=>setMemoTask({taskId:task.id,projectId:proj?.id})} style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#3B82F6",padding:0 }}>
                               {task.memo?"📝 보기":"메모 추가"}
                             </button>
+                          </td>
+                          <td style={{ padding:"11px 14px" }}>
+                            <button onClick={()=>setConfirmDelete({type:"task",id:task.id,projectId:proj?.id,name:task.name})}
+                              style={{ background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#CBD5E1",padding:0 }}>🗑</button>
                           </td>
                         </tr>
                       );
@@ -585,6 +625,53 @@ function ScheduleApp() {
       )}
 
       {/* Modals */}
+      {/* ── 삭제 확인 모달 ── */}
+      {confirmDelete && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <div style={{ background:"white",borderRadius:16,padding:"28px 28px 24px",width:360,boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
+            <div style={{ width:48,height:48,borderRadius:"50%",background:"#FEE2E2",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:22 }}>🗑</div>
+            <div style={{ textAlign:"center",marginBottom:8 }}>
+              <div style={{ fontSize:16,fontWeight:700,color:"#0F172A",marginBottom:6 }}>
+                {confirmDelete.type==="project" ? "프로젝트 삭제" : "테스크 삭제"}
+              </div>
+              <div style={{ fontSize:13,color:"#64748B",lineHeight:1.6 }}>
+                <span style={{ fontWeight:600,color:"#334155" }}>'{confirmDelete.name}'</span>
+                {confirmDelete.type==="project" ? "을(를) 삭제하면
+포함된 모든 테스크도 함께 삭제돼요." : "을(를) 삭제할까요?"}
+              </div>
+              <div style={{ fontSize:12,color:"#94A3B8",marginTop:8,fontWeight:500 }}>삭제 후 5초 이내에 되돌릴 수 있어요.</div>
+            </div>
+            <div style={{ display:"flex",gap:8,marginTop:20 }}>
+              <button onClick={()=>setConfirmDelete(null)}
+                style={{ flex:1,padding:"10px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,fontWeight:600,color:"#64748B" }}>
+                취소
+              </button>
+              <button onClick={()=>confirmDelete.type==="project" ? deleteProject(confirmDelete.id) : deleteTask(confirmDelete.id, confirmDelete.projectId)}
+                style={{ flex:1,padding:"10px",borderRadius:8,border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:700 }}>
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 되돌리기 토스트 ── */}
+      {undoNotice && (
+        <div style={{ position:"fixed",bottom:32,left:"50%",transform:"translateX(-50%)",
+          background:"#0F172A",borderRadius:12,padding:"12px 20px",
+          display:"flex",alignItems:"center",gap:12,zIndex:80,
+          boxShadow:"0 8px 32px rgba(0,0,0,0.3)",minWidth:300 }}>
+          <span style={{ fontSize:13,color:"white",fontWeight:500 }}>{undoNotice.message}</span>
+          <button onClick={handleUndo}
+            style={{ background:"#3B82F6",border:"none",borderRadius:7,padding:"5px 14px",
+              cursor:"pointer",fontSize:13,fontWeight:700,color:"white",flexShrink:0 }}>
+            되돌리기
+          </button>
+          <button onClick={()=>{ clearTimeout(undoNotice.timeoutId); setUndoNotice(null); }}
+            style={{ background:"none",border:"none",cursor:"pointer",color:"#64748B",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
+        </div>
+      )}
+
       {(showAddProject||showAddTask) && (
         <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center" }}>
           <div style={{ background:"white",borderRadius:16,padding:24,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
