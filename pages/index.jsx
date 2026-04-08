@@ -659,9 +659,6 @@ function ScheduleApp() {
               </div>
             </div>
 
-            <div style={{ padding:"0 20px 0", flexShrink:0 }}>
-              <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
-            </div>
             <div style={{ flex:1,overflowY:"auto",padding:"18px 20px" }}>
               <div style={{ fontSize:13,fontWeight:700,color:"#334155",marginBottom:8 }}>📝 메모</div>
               <textarea value={memoData.task.memo} onChange={e=>updateMemo(e.target.value)}
