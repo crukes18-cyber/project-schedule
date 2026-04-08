@@ -248,6 +248,28 @@ function ScheduleApp() {
       .catch(() => setSyncStatus("error"));
   }, []);
 
+  const handleExcelDownload = () => {
+    const rows = [
+      ["프로젝트", "테스크명", "담당자", "시작일", "종료일", "상태", "메모"],
+      ...projects.flatMap(p =>
+        p.tasks.map(t => [
+          p.name, t.name, t.assignee, t.start, t.end,
+          STATUS[t.status]?.label || t.status, t.memo || ""
+        ])
+      )
+    ];
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("
+");
+    const BOM = "﻿";
+    const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,"0")}${String(today.getDate()).padStart(2,"0")}`;
+    a.href = url; a.download = `프로젝트스케줄_${dateStr}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
   const handleSave = async () => {
     setSyncStatus("saving");
     try {
@@ -406,6 +428,10 @@ function ScheduleApp() {
             </div>
             <button onClick={()=>setShowAddProject(true)} style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#6366F1",color:"white" }}>+ 프로젝트</button>
             <button onClick={()=>setShowAddTask(true)}    style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#3B82F6",color:"white" }}>+ 테스크</button>
+            <button onClick={handleExcelDownload}
+              style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#16A34A",color:"white",display:"flex",alignItems:"center",gap:5 }}>
+              <span>⬇️</span> 엑셀 저장
+            </button>
             <button onClick={handleSave} disabled={syncStatus==="saving"||syncStatus==="loading"}
               style={{ padding:"7px 16px",borderRadius:8,border:"none",cursor: syncStatus==="saving"?"not-allowed":"pointer",fontSize:13,fontWeight:600,
                 background: syncStatus==="saved"?"#22C55E": syncStatus==="error"?"#EF4444":"#0F172A", color:"white",
