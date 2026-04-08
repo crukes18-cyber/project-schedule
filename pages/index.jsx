@@ -312,6 +312,11 @@ function ScheduleApp() {
     setProjects(ps=>ps.map(p=>p.id===memoTask.projectId?{...p,tasks:p.tasks.map(t=>t.id===memoTask.taskId?{...t,memo}:t)}:p));
   };
 
+  const updateTaskField = (field, value) => {
+    if (!memoTask) return;
+    setProjects(ps=>ps.map(p=>p.id===memoTask.projectId?{...p,tasks:p.tasks.map(t=>t.id===memoTask.taskId?{...t,[field]:value}:t)}:p));
+  };
+
   const addProject = () => {
     if (!newProject.name.trim()) return;
     setProjects(ps=>[...ps,{id:Date.now(),name:newProject.name,color:newProject.color,expanded:true,tasks:[]}]);
@@ -625,9 +630,37 @@ function ScheduleApp() {
                   <option value="done">완료</option>
                   <option value="delayed">지연</option>
                 </select>
-                <span style={{ padding:"3px 10px",borderRadius:20,background:"#F1F5F9",color:"#64748B",fontSize:11 }}>👤 {memoData.task.assignee}</span>
-                <span style={{ padding:"3px 10px",borderRadius:20,background:"#F1F5F9",color:"#64748B",fontSize:11,whiteSpace:"nowrap" }}>📅 {memoData.task.start} ~ {memoData.task.end}</span>
               </div>
+            </div>
+
+            {/* 편집 가능한 필드 영역 */}
+            <div style={{ padding:"14px 20px 0", borderTop:"1px solid #F1F5F9", flexShrink:0 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                <div>
+                  <label style={{ fontSize:11,fontWeight:600,color:"#94A3B8",display:"block",marginBottom:4 }}>테스크명</label>
+                  <input value={memoData.task.name} onChange={e=>updateTaskField("name", e.target.value)}
+                    style={{ width:"100%",boxSizing:"border-box",padding:"7px 10px",border:"1px solid #E2E8F0",borderRadius:8,fontSize:12,outline:"none",fontFamily:"inherit",color:"#334155" }}/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11,fontWeight:600,color:"#94A3B8",display:"block",marginBottom:4 }}>담당자</label>
+                  <input value={memoData.task.assignee} onChange={e=>updateTaskField("assignee", e.target.value)}
+                    style={{ width:"100%",boxSizing:"border-box",padding:"7px 10px",border:"1px solid #E2E8F0",borderRadius:8,fontSize:12,outline:"none",fontFamily:"inherit",color:"#334155" }}/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11,fontWeight:600,color:"#94A3B8",display:"block",marginBottom:4 }}>시작일</label>
+                  <input type="date" value={memoData.task.start} onChange={e=>updateTaskField("start", e.target.value)}
+                    style={{ width:"100%",boxSizing:"border-box",padding:"7px 10px",border:"1px solid #E2E8F0",borderRadius:8,fontSize:12,outline:"none",fontFamily:"inherit",color:"#334155" }}/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11,fontWeight:600,color:"#94A3B8",display:"block",marginBottom:4 }}>종료일</label>
+                  <input type="date" value={memoData.task.end} onChange={e=>updateTaskField("end", e.target.value)}
+                    style={{ width:"100%",boxSizing:"border-box",padding:"7px 10px",border:"1px solid #E2E8F0",borderRadius:8,fontSize:12,outline:"none",fontFamily:"inherit",color:"#334155" }}/>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding:"0 20px 0", flexShrink:0 }}>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
             </div>
             <div style={{ flex:1,overflowY:"auto",padding:"18px 20px" }}>
               <div style={{ fontSize:13,fontWeight:700,color:"#334155",marginBottom:8 }}>📝 메모</div>
