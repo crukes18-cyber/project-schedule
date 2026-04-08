@@ -258,8 +258,7 @@ function ScheduleApp() {
         ])
       )
     ];
-    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("
-");
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
     const BOM = "﻿";
     const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -428,20 +427,23 @@ function ScheduleApp() {
             </div>
             <button onClick={()=>setShowAddProject(true)} style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#6366F1",color:"white" }}>+ 프로젝트</button>
             <button onClick={()=>setShowAddTask(true)}    style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#3B82F6",color:"white" }}>+ 테스크</button>
-            <button onClick={handleExcelDownload}
-              style={{ padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:"#16A34A",color:"white",display:"flex",alignItems:"center",gap:5 }}>
-              <span>⬇️</span> 엑셀 저장
-            </button>
-            <button onClick={handleSave} disabled={syncStatus==="saving"||syncStatus==="loading"}
-              style={{ padding:"7px 16px",borderRadius:8,border:"none",cursor: syncStatus==="saving"?"not-allowed":"pointer",fontSize:13,fontWeight:600,
-                background: syncStatus==="saved"?"#22C55E": syncStatus==="error"?"#EF4444":"#0F172A", color:"white",
-                display:"flex",alignItems:"center",gap:5,opacity:syncStatus==="saving"?0.7:1,transition:"background .3s" }}>
-              {syncStatus==="loading" && <><span style={{fontSize:14}}>⏳</span> 불러오는중</>}
-              {syncStatus==="saving"  && <><span style={{fontSize:14}}>⏳</span> 저장중...</>}
-              {syncStatus==="saved"   && <><span style={{fontSize:14}}>✅</span> 저장됨</>}
-              {syncStatus==="error"   && <><span style={{fontSize:14}}>❌</span> 오류</>}
-              {syncStatus==="idle"    && <><span style={{fontSize:14}}>☁️</span> 저장</>}
-            </button>
+            <div style={{ display:"flex", gap:4 }}>
+              <button onClick={handleSave} disabled={syncStatus==="saving"||syncStatus==="loading"}
+                style={{ padding:"7px 14px",borderRadius:"8px 0 0 8px",border:"none",cursor:syncStatus==="saving"?"not-allowed":"pointer",fontSize:13,fontWeight:600,
+                  background:syncStatus==="saved"?"#22C55E":syncStatus==="error"?"#EF4444":"#0F172A",color:"white",
+                  display:"flex",alignItems:"center",gap:5,opacity:syncStatus==="saving"?0.7:1,transition:"background .3s" }}>
+                {syncStatus==="loading" && <><span>⏳</span> 불러오는중</>}
+                {syncStatus==="saving"  && <><span>⏳</span> 저장중...</>}
+                {syncStatus==="saved"   && <><span>✅</span> 저장됨</>}
+                {syncStatus==="error"   && <><span>❌</span> 오류</>}
+                {syncStatus==="idle"    && <><span>☁️</span> 저장</>}
+              </button>
+              <button onClick={handleExcelDownload} title="엑셀 파일로 다운로드"
+                style={{ padding:"7px 12px",borderRadius:"0 8px 8px 0",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+                  background:"#16A34A",color:"white",display:"flex",alignItems:"center",gap:4,borderLeft:"1px solid rgba(255,255,255,0.3)" }}>
+                ⬇️
+              </button>
+            </div>
           </div>
         </div>
 
