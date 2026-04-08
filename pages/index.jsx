@@ -358,6 +358,12 @@ function ScheduleApp() {
     setUndoNotice(null);
   };
 
+  const updateTaskStatus = (taskId, projectId, status) => {
+    setProjects(ps => ps.map(p => p.id===projectId
+      ? {...p, tasks: p.tasks.map(t => t.id===taskId ? {...t, status} : t)}
+      : p));
+  };
+
   const upcomingDeadlines = allTasks
     .filter(t=>t.status!=="done")
     .map(t=>({...t,daysLeft:Math.ceil((new Date(t.end)-TODAY)/86400000)}))
@@ -546,7 +552,15 @@ function ScheduleApp() {
                           <td style={{ padding:"11px 14px",color:"#64748B" }}>{task.assignee}</td>
                           <td style={{ padding:"11px 14px",color:"#64748B",whiteSpace:"nowrap" }}>{task.start}</td>
                           <td style={{ padding:"11px 14px",color:"#64748B",whiteSpace:"nowrap" }}>{task.end}</td>
-                          <td style={{ padding:"11px 14px" }}><span style={{ padding:"3px 10px",borderRadius:6,background:sc?.bg,color:sc?.text,fontSize:11,fontWeight:600,whiteSpace:"nowrap" }}>{sc?.label}</span></td>
+                          <td style={{ padding:"8px 14px" }}>
+                            <select value={task.status} onChange={e=>updateTaskStatus(task.id,proj?.id,e.target.value)}
+                              style={{ padding:"4px 8px",borderRadius:6,border:`1px solid ${sc?.bar}`,background:sc?.bg,color:sc?.text,fontSize:11,fontWeight:600,cursor:"pointer",outline:"none" }}>
+                              <option value="todo">할 일</option>
+                              <option value="in-progress">진행중</option>
+                              <option value="done">완료</option>
+                              <option value="delayed">지연</option>
+                            </select>
+                          </td>
                           <td style={{ padding:"11px 14px" }}>
                             <button onClick={()=>setMemoTask({taskId:task.id,projectId:proj?.id})} style={{ background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#3B82F6",padding:0 }}>
                               {task.memo?"📝 보기":"메모 추가"}
@@ -600,8 +614,17 @@ function ScheduleApp() {
                 </div>
                 <button onClick={()=>setMemoTask(null)} style={{ background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#94A3B8",padding:4,marginLeft:8,lineHeight:1 }}>✕</button>
               </div>
-              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-                <span style={{ padding:"3px 10px",borderRadius:20,background:STATUS[memoData.task.status]?.bg,color:STATUS[memoData.task.status]?.text,fontSize:11,fontWeight:700 }}>{STATUS[memoData.task.status]?.label}</span>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
+                <select value={memoData.task.status}
+                  onChange={e=>updateTaskStatus(memoData.task.id, memoData.proj.id, e.target.value)}
+                  style={{ padding:"4px 10px",borderRadius:20,border:`1px solid ${STATUS[memoData.task.status]?.bar}`,
+                    background:STATUS[memoData.task.status]?.bg,color:STATUS[memoData.task.status]?.text,
+                    fontSize:11,fontWeight:700,cursor:"pointer",outline:"none" }}>
+                  <option value="todo">할 일</option>
+                  <option value="in-progress">진행중</option>
+                  <option value="done">완료</option>
+                  <option value="delayed">지연</option>
+                </select>
                 <span style={{ padding:"3px 10px",borderRadius:20,background:"#F1F5F9",color:"#64748B",fontSize:11 }}>👤 {memoData.task.assignee}</span>
                 <span style={{ padding:"3px 10px",borderRadius:20,background:"#F1F5F9",color:"#64748B",fontSize:11,whiteSpace:"nowrap" }}>📅 {memoData.task.start} ~ {memoData.task.end}</span>
               </div>
