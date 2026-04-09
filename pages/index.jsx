@@ -2,10 +2,6 @@
 
 import { useState, useEffect } from "react";
 
-// ─── 비밀번호 설정 (변경하려면 아래 값을 수정하세요) ───────────────────────
-const APP_PASSWORD = "woojoo2026";
-// ────────────────────────────────────────────────────────────────────────────
-
 // 날짜 관련 값은 항상 클라이언트에서 실시간으로 계산
 const GANTT_DAYS = 60;
 
@@ -78,47 +74,105 @@ function getMonthSpans(ganttDates) {
 }
 const WEEKDAYS = ["일","월","화","수","목","금","토"];
 
-// ─── Password Gate ────────────────────────────────────────────────────────────
-function PasswordGate({ onUnlock }) {
-  const [pw, setPw] = useState("");
-  const [error, setError] = useState(false);
+// ─── Login / Signup Gate ─────────────────────────────────────────────────────
+function AuthGate({ onLogin }) {
+  const [mode, setMode] = useState("login"); // login | signup
+  const [userId, setUserId] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const attempt = () => {
-    if (pw === APP_PASSWORD) {
-      if (typeof window !== "undefined") sessionStorage.setItem("schedule_auth", "1");
-      onUnlock();
-    } else {
-      setError(true); setShake(true); setPw("");
-      setTimeout(() => setShake(false), 500);
-    }
+  const triggerShake = (msg) => { setError(msg); setShake(true); setTimeout(()=>setShake(false),500); };
+
+  const handleLogin = async () => {
+    if (!userId.trim()||!password.trim()) return triggerShake("아이디와 비밀번호를 입력해주세요.");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/users");
+      const data = await res.json();
+      const user = (data.users||[]).find(u=>u.userId===userId && u.password===password);
+      if (!user) { setLoading(false); return triggerShake("아이디 또는 비밀번호가 올바르지 않아요."); }
+      if (typeof window !== "undefined") sessionStorage.setItem("schedule_user", JSON.stringify({ userId: user.userId, name: user.name }));
+      onLogin({ userId: user.userId, name: user.name });
+    } catch { triggerShake("서버 오류가 발생했어요. 잠시 후 다시 시도해주세요."); }
+    setLoading(false);
   };
+
+  const handleSignup = async () => {
+    if (!userId.trim()||!password.trim()||!name.trim()) return triggerShake("모든 항목을 입력해주세요.");
+    if (userId.length < 3) return triggerShake("아이디는 3자 이상이어야 해요.");
+    if (password.length < 4) return triggerShake("비밀번호는 4자 이상이어야 해요.");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, name, password })
+      });
+      const data = await res.json();
+      if (res.status === 409) { setLoading(false); return triggerShake(data.error); }
+      if (!data.ok) { setLoading(false); return triggerShake("가입 중 오류가 발생했어요."); }
+      if (typeof window !== "undefined") sessionStorage.setItem("schedule_user", JSON.stringify({ userId, name }));
+      onLogin({ userId, name });
+    } catch { triggerShake("서버 오류가 발생했어요."); }
+    setLoading(false);
+  };
+
+  const inp = { width:"100%", boxSizing:"border-box", padding:"11px 14px", border:"1.5px solid #E2E8F0", borderRadius:10, fontSize:14, outline:"none", fontFamily:"inherit" };
 
   return (
     <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Pretendard','Noto Sans KR',sans-serif" }}>
       <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}`}</style>
-      <div style={{ background:"white", borderRadius:16, padding:"40px 36px", boxShadow:"0 8px 40px rgba(0,0,0,0.10)", width:340, animation: shake?"shake 0.4s ease":"none" }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:52, height:52, borderRadius:14, background:"#3B82F6", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", boxShadow:"0 4px 14px rgba(59,130,246,0.35)" }}>
+      <div style={{ background:"white", borderRadius:16, padding:"40px 36px", boxShadow:"0 8px 40px rgba(0,0,0,0.10)", width:360, animation:shake?"shake 0.4s ease":"none" }}>
+        <div style={{ textAlign:"center", marginBottom:24 }}>
+          <div style={{ width:52,height:52,borderRadius:14,background:"#3B82F6",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:"0 4px 14px rgba(59,130,246,0.35)" }}>
             <span style={{ fontSize:24 }}>📋</span>
           </div>
-          <div style={{ fontSize:18, fontWeight:700, color:"#0F172A" }}>프로젝트 스케줄</div>
-          <div style={{ fontSize:12, color:"#94A3B8", marginTop:4 }}>우주글로벌 내부 전용</div>
+          <div style={{ fontSize:18,fontWeight:700,color:"#0F172A" }}>프로젝트 스케줄</div>
+          <div style={{ fontSize:12,color:"#94A3B8",marginTop:4 }}>우주글로벌 내부 전용</div>
         </div>
-        <label style={{ fontSize:12, fontWeight:600, color:"#64748B", display:"block", marginBottom:6 }}>비밀번호</label>
-        <input
-          type="password" value={pw} autoFocus
-          onChange={e=>{ setPw(e.target.value); setError(false); }}
-          onKeyDown={e=>e.key==="Enter" && attempt()}
-          placeholder="비밀번호를 입력하세요"
-          style={{ width:"100%", boxSizing:"border-box", padding:"11px 14px", border: error?"1.5px solid #EF4444":"1.5px solid #E2E8F0", borderRadius:10, fontSize:14, outline:"none", fontFamily:"inherit", background: error?"#FFF8F8":"white" }}
-        />
-        {error && <div style={{ fontSize:12, color:"#EF4444", marginTop:5 }}>⚠ 비밀번호가 올바르지 않습니다</div>}
-        <button onClick={attempt} style={{ width:"100%", padding:"12px", marginTop:16, background:"#3B82F6", color:"white", border:"none", borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer" }}>
-          입장하기
+
+        {/* 탭 */}
+        <div style={{ display:"flex", background:"#F1F5F9", borderRadius:10, padding:4, marginBottom:20, gap:4 }}>
+          {[["login","로그인"],["signup","회원가입"]].map(([m,label])=>(
+            <button key={m} onClick={()=>{setMode(m);setError("");}} style={{ flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,
+              background:mode===m?"white":"transparent", color:mode===m?"#0F172A":"#94A3B8",
+              boxShadow:mode===m?"0 1px 4px rgba(0,0,0,0.1)":"none", transition:"all .15s" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+          {mode==="signup" && (
+            <div>
+              <label style={{ fontSize:12,fontWeight:600,color:"#64748B",display:"block",marginBottom:5 }}>이름</label>
+              <input value={name} onChange={e=>{setName(e.target.value);setError("");}} placeholder="홍길동" style={inp} autoFocus={mode==="signup"}/>
+            </div>
+          )}
+          <div>
+            <label style={{ fontSize:12,fontWeight:600,color:"#64748B",display:"block",marginBottom:5 }}>아이디</label>
+            <input value={userId} onChange={e=>{setUserId(e.target.value);setError("");}} placeholder="아이디 입력" style={inp} autoFocus={mode==="login"}/>
+          </div>
+          <div>
+            <label style={{ fontSize:12,fontWeight:600,color:"#64748B",display:"block",marginBottom:5 }}>비밀번호</label>
+            <input type="password" value={password} onChange={e=>{setPassword(e.target.value);setError("");}}
+              onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleSignup())}
+              placeholder="비밀번호 입력" style={inp}/>
+          </div>
+        </div>
+
+        {error && <div style={{ fontSize:12,color:"#EF4444",marginTop:10,padding:"8px 12px",background:"#FEF2F2",borderRadius:8 }}>⚠ {error}</div>}
+
+        <button onClick={mode==="login"?handleLogin:handleSignup} disabled={loading}
+          style={{ width:"100%",padding:"12px",marginTop:16,background:"#3B82F6",color:"white",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1 }}>
+          {loading?"처리 중...":(mode==="login"?"로그인":"가입하기")}
         </button>
-        <div style={{ marginTop:16, padding:"10px 12px", background:"#F8FAFC", borderRadius:8, fontSize:11, color:"#94A3B8", textAlign:"center", lineHeight:1.6 }}>
-          이 페이지는 우주글로벌 내부 인원만<br/>접근할 수 있습니다
+
+        <div style={{ marginTop:14,padding:"10px 12px",background:"#F8FAFC",borderRadius:8,fontSize:11,color:"#94A3B8",textAlign:"center",lineHeight:1.6 }}>
+          이 페이지는 우주글로벌 내부 인원만 접근할 수 있습니다
         </div>
       </div>
     </div>
@@ -220,18 +274,28 @@ function CalendarView({ allTasks, projects, statusFilter, setMemoTask }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function ScheduleManager() {
-  const [authed, setAuthed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("schedule_auth")==="1");
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window === "undefined") return null;
+    const s = sessionStorage.getItem("schedule_user");
+    return s ? JSON.parse(s) : null;
+  });
 
-  if (!authed) return <PasswordGate onUnlock={()=>setAuthed(true)} />;
-
-  return <ScheduleApp />;
+  if (!currentUser) return <AuthGate onLogin={(user)=>setCurrentUser(user)} />;
+  return <ScheduleApp currentUser={currentUser} onLogout={()=>{ sessionStorage.removeItem("schedule_user"); setCurrentUser(null); }} />;
 }
 
-function ScheduleApp() {
+function ScheduleApp({ currentUser, onLogout }) {
   const { today: TODAY, ganttStart: GANTT_START, todayLeft, ganttDates } = getDateVars();
   const monthSpans = getMonthSpans(ganttDates);
   const [projects, setProjects] = useState(initialProjects);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | loading | saving | saved | error
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState([]);
+
+  useEffect(() => {
+    if (!showLogs) return;
+    fetch("/api/logs").then(r=>r.json()).then(d=>setLogs(d.logs||[])).catch(()=>{});
+  }, [showLogs]);
   const [lastSaved, setLastSaved] = useState(null);
 
   // 페이지 로드 시 Google Sheets에서 데이터 불러오기
@@ -247,6 +311,15 @@ function ScheduleApp() {
       })
       .catch(() => setSyncStatus("error"));
   }, []);
+
+  // 변경 이력 기록 헬퍼
+  const writeLog = (action, target) => {
+    fetch("/api/logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: currentUser.userId, userName: currentUser.name, action, target })
+    }).catch(()=>{});
+  };
 
   const handleExcelDownload = () => {
     const rows = [
@@ -341,13 +414,16 @@ function ScheduleApp() {
   const addProject = () => {
     if (!newProject.name.trim()) return;
     setProjects(ps=>[...ps,{id:Date.now(),name:newProject.name,color:newProject.color,expanded:true,tasks:[]}]);
+    writeLog("프로젝트 추가", newProject.name);
     setNewProject({name:"",color:"#4A90D9"}); setShowAddProject(false);
   };
 
   const addTask = () => {
     if (!newTask.name.trim()||!newTask.start||!newTask.end) return;
     const targetId = newTask.projectId ?? projects[0]?.id;
+    const proj = projects.find(p=>p.id===targetId);
     setProjects(ps=>ps.map(p=>p.id===targetId?{...p,tasks:[...p.tasks,{id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:""}]}:p));
+    writeLog("테스크 추가", `${proj?.name} > ${newTask.name}`);
     setNewTask({name:"",assignee:"",start:"",end:"",projectId:null,status:"todo"}); setShowAddTask(false);
   };
 
@@ -358,6 +434,7 @@ function ScheduleApp() {
     if (memoTask?.projectId===id) setMemoTask(null);
     setConfirmDelete(null);
     // 되돌리기 스택에 저장
+    writeLog("프로젝트 삭제", proj?.name || "");
     const tid = setTimeout(() => setUndoNotice(null), 5000);
     setUndoStack(s=>[...s, { snapshot, label: `프로젝트 "${proj?.name}" 삭제` }]);
     setUndoNotice({ message: `프로젝트 "${proj?.name}"이 삭제됐어요.`, timeoutId: tid });
@@ -371,6 +448,7 @@ function ScheduleApp() {
     if (memoTask?.taskId===taskId) setMemoTask(null);
     setConfirmDelete(null);
     // 되돌리기 스택에 저장
+    writeLog("테스크 삭제", `${proj?.name} > ${task?.name}`);
     const tid = setTimeout(() => setUndoNotice(null), 5000);
     setUndoStack(s=>[...s, { snapshot, label: `테스크 "${task?.name}" 삭제` }]);
     setUndoNotice({ message: `테스크 "${task?.name}"이 삭제됐어요.`, timeoutId: tid });
@@ -386,9 +464,12 @@ function ScheduleApp() {
   };
 
   const updateTaskStatus = (taskId, projectId, status) => {
+    const proj = projects.find(p=>p.id===projectId);
+    const task = proj?.tasks.find(t=>t.id===taskId);
     setProjects(ps => ps.map(p => p.id===projectId
       ? {...p, tasks: p.tasks.map(t => t.id===taskId ? {...t, status} : t)}
       : p));
+    writeLog("상태 변경", `${proj?.name} > ${task?.name} → ${STATUS[status]?.label||status}`);
   };
 
   const upcomingDeadlines = allTasks
@@ -411,6 +492,7 @@ function ScheduleApp() {
             <h1 style={{ fontSize:22, fontWeight:700, color:"#0F172A", margin:0 }}>프로젝트 스케줄</h1>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
               <span style={{ fontSize:12, color:"#94A3B8" }}>오늘: {TODAY.getFullYear()}년 {TODAY.getMonth()+1}월 {TODAY.getDate()}일 {["일","월","화","수","목","금","토"][TODAY.getDay()]}요일</span>
+              <span style={{ fontSize:12, color:"#64748B", fontWeight:600 }}>👤 {currentUser.name} ({currentUser.userId})</span>
               <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, color:"#64748B" }}>
                 <span style={{ width:7,height:7,borderRadius:"50%",background: syncStatus==="error"?"#EF4444":"#22C55E",display:"inline-block" }}/>
                 {syncTime} 동기화 <span onClick={handleSave} style={{ cursor:"pointer",color:"#3B82F6",fontSize:14 }}>↻</span>
@@ -445,6 +527,14 @@ function ScheduleApp() {
                 ⬇️
               </button>
             </div>
+            <button onClick={()=>setShowLogs(true)}
+              style={{ padding:"7px 12px",borderRadius:8,border:"1px solid #E2E8F0",cursor:"pointer",fontSize:13,fontWeight:600,background:"white",color:"#64748B",display:"flex",alignItems:"center",gap:4 }}>
+              📋 변경 이력
+            </button>
+            <button onClick={onLogout}
+              style={{ padding:"7px 12px",borderRadius:8,border:"1px solid #E2E8F0",cursor:"pointer",fontSize:13,fontWeight:600,background:"white",color:"#EF4444" }}>
+              로그아웃
+            </button>
           </div>
         </div>
 
@@ -728,6 +818,48 @@ function ScheduleApp() {
               <button onClick={()=>confirmDelete.type==="project" ? deleteProject(confirmDelete.id) : deleteTask(confirmDelete.id, confirmDelete.projectId)}
                 style={{ flex:1,padding:"10px",borderRadius:8,border:"none",background:"#EF4444",color:"white",cursor:"pointer",fontSize:13,fontWeight:700 }}>
                 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 변경 이력 모달 ── */}
+      {showLogs && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:80,display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <div style={{ background:"white",borderRadius:16,width:600,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ padding:"20px 24px",borderBottom:"1px solid #E2E8F0",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0 }}>
+              <div>
+                <div style={{ fontSize:16,fontWeight:700,color:"#0F172A" }}>📋 변경 이력</div>
+                <div style={{ fontSize:12,color:"#94A3B8",marginTop:2 }}>최근 100건</div>
+              </div>
+              <button onClick={()=>setShowLogs(false)} style={{ background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#94A3B8" }}>✕</button>
+            </div>
+            <div style={{ flex:1,overflowY:"auto",padding:"16px 24px" }}>
+              {logs.length===0 ? (
+                <div style={{ textAlign:"center",color:"#94A3B8",padding:"40px 0" }}>
+                  <div style={{ fontSize:28,marginBottom:8 }}>📭</div>
+                  <div>아직 변경 이력이 없어요</div>
+                </div>
+              ) : logs.map((log,i) => (
+                <div key={i} style={{ display:"flex",gap:12,padding:"10px 0",borderBottom:"1px solid #F1F5F9",alignItems:"flex-start" }}>
+                  <div style={{ width:8,height:8,borderRadius:"50%",background:"#3B82F6",marginTop:6,flexShrink:0 }}/>
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+                      <span style={{ fontSize:12,fontWeight:700,color:"#0F172A" }}>{log.userName}</span>
+                      <span style={{ fontSize:11,color:"#94A3B8" }}>({log.userId})</span>
+                      <span style={{ padding:"2px 8px",borderRadius:6,background:"#EFF6FF",color:"#3B82F6",fontSize:11,fontWeight:600 }}>{log.action}</span>
+                    </div>
+                    <div style={{ fontSize:12,color:"#64748B",marginTop:2 }}>{log.target}</div>
+                    <div style={{ fontSize:11,color:"#CBD5E1",marginTop:2 }}>{log.timestamp}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:"14px 24px",borderTop:"1px solid #E2E8F0",flexShrink:0 }}>
+              <button onClick={()=>{ fetch("/api/logs").then(r=>r.json()).then(d=>setLogs(d.logs||[])); }}
+                style={{ padding:"8px 16px",borderRadius:8,border:"1px solid #E2E8F0",background:"white",cursor:"pointer",fontSize:13,color:"#64748B" }}>
+                🔄 새로고침
               </button>
             </div>
           </div>
