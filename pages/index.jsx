@@ -342,23 +342,76 @@ function ScheduleApp({ currentUser, onLogout }) {
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const handleSave = async () => {
+  // 액션 기반 저장: 항상 Sheets 최신 데이터에 액션을 적용 (동시 편집 충돌 방지)
+  // type: "addProject" | "deleteProject" | "addTask" | "deleteTask" | "editTask"
+  const autoSave = async (type, payload) => {
     setSyncStatus("saving");
     try {
+      // 1. Sheets 최신 데이터 불러오기
+      const latestRes = await fetch("/api/projects");
+      const latestData = await latestRes.json();
+      const latest = latestData.projects || [];
+
+      // 2. 최신 데이터에 액션 적용
+      let result;
+      if (type === "addProject") {
+        const exists = latest.find(p => p.id === payload.id);
+        result = exists ? latest : [...latest, payload];
+      } else if (type === "deleteProject") {
+        result = latest.filter(p => p.id !== payload.id);
+      } else if (type === "addTask") {
+        result = latest.map(p => {
+          if (p.id !== payload.projectId) return p;
+          const exists = p.tasks.find(t => t.id === payload.task.id);
+          return exists ? p : {...p, tasks: [...p.tasks, payload.task]};
+        });
+      } else if (type === "deleteTask") {
+        result = latest.map(p => p.id === payload.projectId
+          ? {...p, tasks: p.tasks.filter(t => t.id !== payload.taskId)}
+          : p);
+      } else if (type === "editTask") {
+        result = latest.map(p => p.id === payload.projectId
+          ? {...p, tasks: p.tasks.map(t => t.id === payload.task.id ? payload.task : t)}
+          : p);
+      } else {
+        result = latest;
+      }
+
+      // 3. 화면 업데이트
+      setProjects(result);
+
+      // 4. Sheets에 저장
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projects }),
+        body: JSON.stringify({ projects: result }),
       });
       const data = await res.json();
       if (data.ok) {
         setSyncStatus("saved");
-        const now = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-        setLastSaved(now);
-        setTimeout(() => setSyncStatus("idle"), 3000);
+        const nowStr = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+        setLastSaved(nowStr);
+        setTimeout(() => setSyncStatus("idle"), 2000);
       } else {
         setSyncStatus("error");
       }
+    } catch {
+      setSyncStatus("error");
+    }
+  };
+
+  // 수동 저장 버튼 — 최신 데이터 새로고침
+  const handleSave = async () => {
+    setSyncStatus("loading");
+    try {
+      const res = await fetch("/api/projects");
+      const data = await res.json();
+      if (data.projects && data.projects.length > 0) {
+        setProjects(data.projects);
+      }
+      setSyncStatus("saved");
+      setLastSaved(new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }));
+      setTimeout(() => setSyncStatus("idle"), 2000);
     } catch {
       setSyncStatus("error");
     }
@@ -411,10 +464,23 @@ function ScheduleApp({ currentUser, onLogout }) {
     setProjects(ps=>ps.map(p=>p.id===memoTask.projectId?{...p,tasks:p.tasks.map(t=>t.id===memoTask.taskId?{...t,[field]:value}:t)}:p));
   };
 
+  // 메모 패널 닫을 때 변경사항 저장
+  const closeMemoPanel = () => {
+    if (memoTask) {
+      const proj = projects.find(p=>p.id===memoTask.projectId);
+      const task = proj?.tasks.find(t=>t.id===memoTask.taskId);
+      if (task) {
+        autoSave("editTask", { projectId: memoTask.projectId, task });
+      }
+    }
+    setMemoTask(null);
+  };
+
   const addProject = () => {
     if (!newProject.name.trim()) return;
-    setProjects(ps=>[...ps,{id:Date.now(),name:newProject.name,color:newProject.color,expanded:true,tasks:[]}]);
+    const newProj = {id:Date.now(),name:newProject.name,color:newProject.color,expanded:true,tasks:[]};
     writeLog("프로젝트 추가", newProject.name);
+    autoSave("addProject", newProj);
     setNewProject({name:"",color:"#4A90D9"}); setShowAddProject(false);
   };
 
@@ -422,19 +488,19 @@ function ScheduleApp({ currentUser, onLogout }) {
     if (!newTask.name.trim()||!newTask.start||!newTask.end) return;
     const targetId = newTask.projectId ?? projects[0]?.id;
     const proj = projects.find(p=>p.id===targetId);
-    setProjects(ps=>ps.map(p=>p.id===targetId?{...p,tasks:[...p.tasks,{id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:""}]}:p));
+    const newT = {id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:""};
     writeLog("테스크 추가", `${proj?.name} > ${newTask.name}`);
+    autoSave("addTask", { projectId: targetId, task: newT });
     setNewTask({name:"",assignee:"",start:"",end:"",projectId:null,status:"todo"}); setShowAddTask(false);
   };
 
   const deleteProject = (id) => {
     const snapshot = projects;
     const proj = projects.find(p=>p.id===id);
-    setProjects(ps=>ps.filter(p=>p.id!==id));
     if (memoTask?.projectId===id) setMemoTask(null);
     setConfirmDelete(null);
-    // 되돌리기 스택에 저장
     writeLog("프로젝트 삭제", proj?.name || "");
+    autoSave("deleteProject", { id });
     const tid = setTimeout(() => setUndoNotice(null), 5000);
     setUndoStack(s=>[...s, { snapshot, label: `프로젝트 "${proj?.name}" 삭제` }]);
     setUndoNotice({ message: `프로젝트 "${proj?.name}"이 삭제됐어요.`, timeoutId: tid });
@@ -444,11 +510,10 @@ function ScheduleApp({ currentUser, onLogout }) {
     const snapshot = projects;
     const proj = projects.find(p=>p.id===projectId);
     const task = proj?.tasks.find(t=>t.id===taskId);
-    setProjects(ps=>ps.map(p=>p.id===projectId?{...p,tasks:p.tasks.filter(t=>t.id!==taskId)}:p));
     if (memoTask?.taskId===taskId) setMemoTask(null);
     setConfirmDelete(null);
-    // 되돌리기 스택에 저장
     writeLog("테스크 삭제", `${proj?.name} > ${task?.name}`);
+    autoSave("deleteTask", { projectId, taskId });
     const tid = setTimeout(() => setUndoNotice(null), 5000);
     setUndoStack(s=>[...s, { snapshot, label: `테스크 "${task?.name}" 삭제` }]);
     setUndoNotice({ message: `테스크 "${task?.name}"이 삭제됐어요.`, timeoutId: tid });
@@ -466,10 +531,10 @@ function ScheduleApp({ currentUser, onLogout }) {
   const updateTaskStatus = (taskId, projectId, status) => {
     const proj = projects.find(p=>p.id===projectId);
     const task = proj?.tasks.find(t=>t.id===taskId);
-    setProjects(ps => ps.map(p => p.id===projectId
-      ? {...p, tasks: p.tasks.map(t => t.id===taskId ? {...t, status} : t)}
-      : p));
+    if (!task) return;
+    const updatedTask = {...task, status};
     writeLog("상태 변경", `${proj?.name} > ${task?.name} → ${STATUS[status]?.label||status}`);
+    autoSave("editTask", { projectId, task: updatedTask });
   };
 
   const upcomingDeadlines = allTasks
@@ -725,7 +790,7 @@ function ScheduleApp({ currentUser, onLogout }) {
       {/* Memo Panel */}
       {memoTask && memoData && (
         <>
-          <div onClick={()=>setMemoTask(null)} style={{ position:"fixed",inset:0,background:"rgba(15,23,42,0.25)",zIndex:40 }}/>
+          <div onClick={closeMemoPanel} style={{ position:"fixed",inset:0,background:"rgba(15,23,42,0.25)",zIndex:40 }}/>
           <div style={{ position:"fixed",top:0,right:0,bottom:0,width:420,background:"white",zIndex:50,display:"flex",flexDirection:"column",boxShadow:"-6px 0 32px rgba(0,0,0,0.12)" }}>
             <div style={{ padding:"20px 20px 16px",borderBottom:"1px solid #E2E8F0",flexShrink:0 }}>
               <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12 }}>
@@ -736,7 +801,7 @@ function ScheduleApp({ currentUser, onLogout }) {
                   </div>
                   <div style={{ fontSize:16,fontWeight:700,color:"#0F172A" }}>{memoData.task.name}</div>
                 </div>
-                <button onClick={()=>setMemoTask(null)} style={{ background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#94A3B8",padding:4,marginLeft:8,lineHeight:1 }}>✕</button>
+                <button onClick={closeMemoPanel} style={{ background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#94A3B8",padding:4,marginLeft:8,lineHeight:1 }}>✕</button>
               </div>
               <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
                 <select value={memoData.task.status}
