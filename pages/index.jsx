@@ -296,7 +296,7 @@ function ScheduleApp() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newProject, setNewProject] = useState({ name:"", color:"#4A90D9" });
-  const [newTask, setNewTask] = useState({ name:"", assignee:"", start:"", end:"", projectId:1, status:"todo" });
+  const [newTask, setNewTask] = useState({ name:"", assignee:"", start:"", end:"", projectId:null, status:"todo" });
   const [confirmDelete, setConfirmDelete] = useState(null); // { type: "project"|"task", id, projectId?, name }
   const [undoStack, setUndoStack] = useState([]); // 되돌리기 스택
   const [undoNotice, setUndoNotice] = useState(null); // { message, timeoutId }
@@ -346,8 +346,9 @@ function ScheduleApp() {
 
   const addTask = () => {
     if (!newTask.name.trim()||!newTask.start||!newTask.end) return;
-    setProjects(ps=>ps.map(p=>p.id===Number(newTask.projectId)?{...p,tasks:[...p.tasks,{id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:""}]}:p));
-    setNewTask({name:"",assignee:"",start:"",end:"",projectId:1,status:"todo"}); setShowAddTask(false);
+    const targetId = newTask.projectId ?? projects[0]?.id;
+    setProjects(ps=>ps.map(p=>p.id===targetId?{...p,tasks:[...p.tasks,{id:Date.now(),name:newTask.name,assignee:newTask.assignee,start:newTask.start,end:newTask.end,status:newTask.status,memo:""}]}:p));
+    setNewTask({name:"",assignee:"",start:"",end:"",projectId:null,status:"todo"}); setShowAddTask(false);
   };
 
   const deleteProject = (id) => {
@@ -785,7 +786,7 @@ function ScheduleApp() {
                 ))}
                 <div style={{ marginBottom:11 }}>
                   <label style={{ fontSize:12,color:"#64748B",fontWeight:600,display:"block",marginBottom:4 }}>프로젝트</label>
-                  <select value={newTask.projectId} onChange={e=>setNewTask(t=>({...t,projectId:Number(e.target.value)}))} style={sel}>
+                  <select value={newTask.projectId ?? projects[0]?.id ?? ""} onChange={e=>setNewTask(t=>({...t,projectId:Number(e.target.value)}))} style={sel}>
                     {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
